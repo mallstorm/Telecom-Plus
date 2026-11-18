@@ -47,7 +47,12 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             return TelephonySnapshot.unprovisioned();
         }
         try {
-            return snapshotFromProfile(new JSONObject(str), TelephonyRegistrationState.PROVISIONED, "Телефонный профиль сохранён и зашифрован");
+            JSONObject stored = new JSONObject(str);
+            if (!this.provisioning.terminalId().equals(stored.optString("termid_used", ""))) {
+                this.vault.remove(PROFILE_KEY);
+                return TelephonySnapshot.unprovisioned();
+            }
+            return snapshotFromProfile(stored, TelephonyRegistrationState.PROVISIONED, "Телефонный профиль сохранён и зашифрован");
         } catch (Exception unused) {
             this.vault.remove(PROFILE_KEY);
             return TelephonySnapshot.unprovisioned();
@@ -145,6 +150,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             }
             JSONObject jSONObject = new JSONObject(complete.toString());
             jSONObject.put("registration_identity", str2);
+            jSONObject.put("termid_used", this.provisioning.terminalId());
             jSONObject.put("server", "intertelecom.ringotel.net:443");
             this.vault.put(PROFILE_KEY, jSONObject.toString());
             this.vault.remove(PENDING_PHONE_KEY);
@@ -192,6 +198,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             JSONObject profile = new JSONObject(complete.toString());
             String identity = complete.optString("email", complete.optString("login", complete.optString("name", "Google")));
             profile.put("registration_identity", identity);
+            profile.put("termid_used", this.provisioning.terminalId());
             profile.put("server", "intertelecom.ringotel.net:443");
             this.vault.put(PROFILE_KEY, profile.toString());
             this.vault.remove(PENDING_PHONE_KEY);
@@ -211,7 +218,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             return;
         }
         probedAt = System.currentTimeMillis();
-        TelephonyLog.pin("probe: старт (diag-6), логин/пароль перебираем");
+        TelephonyLog.pin("probe: старт (diag-7), логин/пароль перебираем");
         final String termid = this.provisioning.terminalId();
         new Thread(new Runnable() {
             @Override
@@ -303,7 +310,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             }
             probeAuth(jSONObject, termpass);
             stopAgent();
-            TelephonyLog.log("connect (diag-6): server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
+            TelephonyLog.log("connect (diag-7): server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
             try {
                 JSONObject dump = new JSONObject(jSONObject.toString());
                 if (dump.has("termpass")) {

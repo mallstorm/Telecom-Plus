@@ -224,9 +224,26 @@ final class RingotelProvisioningClient {
         return str + " (код " + optInt + ")";
     }
 
+    /** Собственный идентификатор терминала приложения (не совпадает с android_id официального IT Phone). */
     String terminalId() {
-        String string = Settings.Secure.getString(this.context.getContentResolver(), "android_id");
-        return (string == null || string.trim().isEmpty()) ? "telecom-plus" : string.trim();
+        try {
+            android.content.SharedPreferences sp = this.context.getSharedPreferences("telecom_plus_net", 0);
+            String id = sp.getString("term_id", null);
+            if (id == null || id.length() != 16) {
+                byte[] b = new byte[8];
+                new java.security.SecureRandom().nextBytes(b);
+                StringBuilder sb = new StringBuilder();
+                for (byte x : b) {
+                    sb.append(String.format(Locale.US, "%02x", x & 255));
+                }
+                id = sb.toString();
+                sp.edit().putString("term_id", id).apply();
+            }
+            return id;
+        } catch (Exception e) {
+            String string = Settings.Secure.getString(this.context.getContentResolver(), "android_id");
+            return (string == null || string.trim().isEmpty()) ? "telecom-plus" : string.trim();
+        }
     }
 
     public JSONObject complete(String str, String str2) throws Exception {
@@ -241,6 +258,7 @@ final class RingotelProvisioningClient {
         JSONObject jSONObject = new JSONObject();
         jSONObject.put(registrationKey(normalizeRegistrationIdentity), normalizeRegistrationIdentity);
         jSONObject.put("code", digits);
+        jSONObject.put("termid", terminalId());
         jSONObject.put("country", Locale.getDefault().getCountry());
         return command("registrationComplete", jSONObject);
     }
