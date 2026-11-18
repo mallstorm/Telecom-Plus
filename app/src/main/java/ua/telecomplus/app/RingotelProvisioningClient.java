@@ -60,10 +60,27 @@ final class RingotelProvisioningClient {
     }
 
     private JSONObject commandWs(String str, JSONObject jSONObject) throws Exception {
-        return commandWsAt(str, jSONObject, HOST, 443, "/", 0);
+        int saved = SipWebSocket.savedDirectMode();
+        int[] order = saved == 2 ? new int[]{2, 1, 0} : saved == 0 && false ? new int[]{0, 1, 2} : (saved == 1 ? new int[]{1, 2, 0} : new int[]{1, 2, 0});
+        Exception last = null;
+        for (int mode : order) {
+            try {
+                TelephonyLog.log("Provisioning WS: режим " + mode + (mode == 0 ? " (с SNI)" : " (IP без SNI)"));
+                JSONObject r = commandWsAt(str, jSONObject, HOST, 443, "/", mode == 0 ? 0 : 4, mode);
+                SipWebSocket.saveDirectMode(mode);
+                return r;
+            } catch (IllegalStateException e) {
+                SipWebSocket.saveDirectMode(mode);
+                throw e;
+            } catch (Exception e2) {
+                last = e2;
+                TelephonyLog.log("Provisioning WS: режим " + mode + " не подошёл: " + e2.getMessage());
+            }
+        }
+        throw last == null ? new java.io.IOException("нет соединения") : last;
     }
 
-    private JSONObject commandWsAt(String str, JSONObject jSONObject, String host, int port, String path, int depth) throws Exception {
+    private JSONObject commandWsAt(String str, JSONObject jSONObject, String host, int port, String path, int depth, int mode) throws Exception {
         final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         final String[] resp = {null};
         SipWebSocket ws = new SipWebSocket(host, port, "json.api.smile-soft.com", "Ringotel", new SipWebSocket.Listener() {
@@ -82,6 +99,7 @@ final class RingotelProvisioningClient {
         });
         try {
             ws.setPath(path);
+            ws.applyDirectMode(mode);
             TelephonyLog.log("Provisioning WS: подключение " + host + ":" + port + path + ", метод " + str);
             try {
                 ws.connect();
@@ -98,7 +116,7 @@ final class RingotelProvisioningClient {
                 if (target.getRawQuery() != null) {
                     np = np + "?" + target.getRawQuery();
                 }
-                return commandWsAt(str, jSONObject, target.getHost(), target.getPort() > 0 ? target.getPort() : 443, np, depth + 1);
+                return commandWsAt(str, jSONObject, target.getHost(), target.getPort() > 0 ? target.getPort() : 443, np, depth + 1, mode);
             }
             JSONObject msg = new JSONObject();
             msg.put("method", str);

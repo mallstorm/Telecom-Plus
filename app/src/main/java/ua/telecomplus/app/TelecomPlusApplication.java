@@ -9,10 +9,12 @@ public final class TelecomPlusApplication extends Application {
     TelephonyEngine telephony;
     SecureVault vault;
     static volatile boolean foreground;
+    static volatile TelecomPlusApplication instance;
 
     @Override // android.app.Application
     public void onCreate() {
         super.onCreate();
+        instance = this;
         SecureVault secureVault = new SecureVault(this);
         this.vault = secureVault;
         this.gateway = new IntertelecomPortalClient(secureVault);

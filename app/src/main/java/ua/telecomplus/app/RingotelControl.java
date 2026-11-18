@@ -131,6 +131,9 @@ final class RingotelControl implements SipWebSocket.Listener {
     private void connect() throws Exception {
         TelephonyLog.log("Control: подключение (" + SUBPROTOCOL + ")");
         SipWebSocket ws = new SipWebSocket(this.host, this.port, SUBPROTOCOL, "Ringotel", this);
+        if (RingotelHostnameVerifier.HOST.equalsIgnoreCase(this.host)) {
+            ws.applyDirectMode(SipWebSocket.savedDirectMode());
+        }
         ws.setBasicAuth(this.termId, this.termPass);
         this.socket = ws;
         ws.connect();

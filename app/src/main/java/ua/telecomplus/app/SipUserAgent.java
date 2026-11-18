@@ -327,6 +327,9 @@ final class SipUserAgent implements SipWebSocket.Listener {
     private void connectAndRegister() throws Exception {
         TelephonyLog.log("Подключение к wss://" + this.host + ":" + this.port + " (" + SUBPROTOCOL + ")");
         SipWebSocket ws = new SipWebSocket(this.host, this.port, SUBPROTOCOL, this.userAgent, this);
+        if (RingotelHostnameVerifier.HOST.equalsIgnoreCase(this.host)) {
+            ws.applyDirectMode(SipWebSocket.savedDirectMode());
+        }
         this.socket = ws;
         ws.connect();
         TelephonyLog.log("WebSocket открыт");

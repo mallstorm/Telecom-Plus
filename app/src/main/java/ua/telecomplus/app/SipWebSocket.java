@@ -52,6 +52,55 @@ final class SipWebSocket {
     }
 
     private String path = "/";
+    private String directIp;
+    private String hostHeader;
+
+    /** Прямое подключение к IP без SNI (так подключается оригинальный клиент IT Phone). */
+    void setDirect(String ip, String hostHeader) {
+        this.directIp = ip;
+        this.hostHeader = hostHeader;
+    }
+
+    static final String PREF = "ringotel_direct";
+    static final String FALLBACK_IP = "3.68.50.43";
+
+    static String resolveRingotelIp() {
+        try {
+            String ip = java.net.InetAddress.getByName(RingotelHostnameVerifier.HOST).getHostAddress();
+            if (ip != null && ip.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
+                return ip;
+            }
+        } catch (Exception unused) {
+        }
+        return FALLBACK_IP;
+    }
+
+    /** 0 = обычное подключение, 1 = IP без SNI + Host=имя, 2 = IP без SNI + Host=IP. */
+    static int savedDirectMode() {
+        try {
+            TelecomPlusApplication app = TelecomPlusApplication.instance;
+            return app == null ? 0 : app.getSharedPreferences("telecom_plus_net", 0).getInt(PREF, 0);
+        } catch (Exception unused) {
+            return 0;
+        }
+    }
+
+    static void saveDirectMode(int mode) {
+        try {
+            TelecomPlusApplication app = TelecomPlusApplication.instance;
+            if (app != null) {
+                app.getSharedPreferences("telecom_plus_net", 0).edit().putInt(PREF, mode).apply();
+            }
+        } catch (Exception unused) {
+        }
+    }
+
+    void applyDirectMode(int mode) {
+        if (mode == 1 || mode == 2) {
+            String ip = resolveRingotelIp();
+            setDirect(ip, mode == 1 ? RingotelHostnameVerifier.HOST : ip);
+        }
+    }
 
     void setPath(String str) {
         this.path = (str == null || str.isEmpty()) ? "/" : str;
@@ -66,7 +115,13 @@ final class SipWebSocket {
         SSLContext sSLContext = SSLContext.getInstance("TLS");
         sSLContext.init(null, null, null);
         SSLSocket sSLSocket = (SSLSocket) sSLContext.getSocketFactory().createSocket();
-        sSLSocket.connect(new java.net.InetSocketAddress(this.host, this.port), 15000);
+        if (this.directIp != null) {
+            String[] o = this.directIp.split("\\.");
+            byte[] b = new byte[]{(byte) Integer.parseInt(o[0]), (byte) Integer.parseInt(o[1]), (byte) Integer.parseInt(o[2]), (byte) Integer.parseInt(o[3])};
+            sSLSocket.connect(new java.net.InetSocketAddress(java.net.InetAddress.getByAddress(b), this.port), 15000);
+        } else {
+            sSLSocket.connect(new java.net.InetSocketAddress(this.host, this.port), 15000);
+        }
         sSLSocket.setSoTimeout(15000);
         sSLSocket.startHandshake();
         if (!RingotelHostnameVerifier.INSTANCE.verify(this.host, sSLSocket.getSession())) {
@@ -79,7 +134,7 @@ final class SipWebSocket {
         byte[] keyBytes = new byte[16];
         this.random.nextBytes(keyBytes);
         String key = Base64.encodeToString(keyBytes, Base64.NO_WRAP);
-        String request = "GET " + this.path + " HTTP/1.1\r\nHost: " + this.host + (this.port == 443 ? "" : ":" + this.port) + "\r\n"
+        String request = "GET " + this.path + " HTTP/1.1\r\nHost: " + (this.hostHeader != null ? this.hostHeader : this.host) + (this.port == 443 ? "" : ":" + this.port) + "\r\n"
                 + "Upgrade: websocket\r\nConnection: Upgrade\r\n"
                 + "Sec-WebSocket-Key: " + key + "\r\n"
                 + "Sec-WebSocket-Protocol: " + this.subProtocol + "\r\n"
