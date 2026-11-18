@@ -22,13 +22,14 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
     private long connectedAt;
     private TelephonyEngine.Listener listener;
     private final RingotelProvisioningClient provisioning;
-    private TelephonySnapshot snapshot = restoreSnapshot();
+    private TelephonySnapshot snapshot;
     private final SecureVault vault;
 
     public CleanRoomTelephonyEngine(Context context, SecureVault secureVault) {
         this.vault = secureVault;
         this.context = context.getApplicationContext();
         this.provisioning = new RingotelProvisioningClient(context);
+        this.snapshot = restoreSnapshot();
     }
 
     private TelephonyResult<Void> callUnavailable() {
