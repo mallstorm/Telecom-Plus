@@ -11,7 +11,13 @@ interface TelephonyEngine {
 
     TelephonyResult<Void> answer();
 
+    void addObserver(Listener listener);
+
+    void removeObserver(Listener listener);
+
     void close();
+
+    RingotelControl control();
 
     boolean incomingRinging();
 

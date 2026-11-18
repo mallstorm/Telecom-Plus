@@ -276,28 +276,38 @@ public final class MainActivity extends Activity {
         LinearLayout row = row();
         row.setBackgroundColor(-1);
         row.setPadding(dp(5), dp(5), dp(5), dp(5));
-        String[] strArr = {"Главная", "Услуги", "Телефон", "История", "Профиль"};
-        String[] strArr2 = {"⌂", "☷", "☎", "◷", "●"};
-        int i = 0;
-        int i2 = 0;
-        while (i2 < 5) {
+        String[] names = {"Кабинет", "Звонки", "Контакты", "Чаты", "Ещё"};
+        String[] icons = {"⌂", "☎", "☺", "✉", "☰"};
+        final int[] tabs = {0, 2, 5, 6, 4};
+        int unread = phoneData().unreadTotal();
+        for (int i = 0; i < 5; i++) {
+            final int tab = tabs[i];
+            boolean active = this.selectedTab == tab || (tab == 0 && (this.selectedTab == 1 || this.selectedTab == 3));
             LinearLayout column = column();
             column.setGravity(17);
             column.setPadding(dp(2), dp(3), dp(2), dp(3));
-            TextView label = label(strArr2[i2], 22, this.selectedTab == i2 ? -1 : MUTED, true);
-            label.setGravity(17);
-            column.addView(label, matchWrap());
-            String str = strArr[i2];
-            int i3 = this.selectedTab;
-            TextView label2 = label(str, 10, i3 == i2 ? -1 : MUTED, i3 == i2);
-            label2.setGravity(17);
-            column.addView(label2, matchWrap());
-            column.setBackground(this.selectedTab == i2 ? gradient(BLUE, CYAN, 16) : null);
-            column.setOnClickListener(new defpackage.f(this, i2, i));
+            TextView icon = label(icons[i], 22, active ? -1 : MUTED, true);
+            icon.setGravity(17);
+            column.addView(icon, matchWrap());
+            String caption = names[i];
+            if (tab == 6 && unread > 0) {
+                caption = names[i] + " (" + unread + ")";
+            }
+            TextView text = label(caption, 10, active ? -1 : MUTED, active);
+            text.setGravity(17);
+            column.addView(text, matchWrap());
+            column.setBackground(active ? gradient(BLUE, CYAN, 16) : null);
+            column.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.chatNumber = null;
+                    MainActivity.this.selectedTab = tab;
+                    MainActivity.this.showCabinet();
+                }
+            });
             LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(0, -1, 1.0f);
             layoutParams.setMargins(dp(2), dp(2), dp(2), dp(2));
             row.addView(column, layoutParams);
-            i2++;
         }
         return row;
     }
@@ -991,7 +1001,9 @@ public final class MainActivity extends Activity {
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$0(TelephonySnapshot telephonySnapshot) {
         this.telephonySnapshot = telephonySnapshot;
+        ensureTelephonyService();
         if (this.dashboard != null && this.telephony.incomingRinging()) {
+            this.chatNumber = null;
             this.selectedTab = 2;
             showCabinet();
             return;
@@ -1017,6 +1029,11 @@ public final class MainActivity extends Activity {
         if (z) {
             getSharedPreferences("telecom_plus_local_security_v1", 0).edit().clear().commit();
             getSharedPreferences("auth_guard", 0).edit().clear().commit();
+        }
+        if (z) {
+            TelephonyService.stop(this);
+            this.serviceStarted = false;
+            phoneData().clearAll();
         }
         this.dashboard = null;
         this.services = new ArrayList();
@@ -1181,6 +1198,13 @@ public final class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int i, String[] strArr, int[] iArr) {
         super.onRequestPermissionsResult(i, strArr, iArr);
+        if (i == 4713) {
+            if (iArr.length > 0 && iArr[0] == 0) {
+                importDeviceContacts();
+            } else {
+                Toast.makeText(this, "Нет доступа к контактам", 0).show();
+            }
+        }
         if (i == 4711) {
             Runnable runnable = this.pendingMicAction;
             this.pendingMicAction = null;
@@ -3016,7 +3040,700 @@ public final class MainActivity extends Activity {
         return colorCard;
     }
 
+    // ======================= Звонки / Контакты / Чаты =======================
+
+    private String chatNumber;
+    private String contactFilter = "";
+    private LinearLayout chatMessages;
+    private ScrollView chatScroll;
+    private boolean serviceStarted;
+    private final PhoneData.Listener dataListener = new PhoneData.Listener() {
+        @Override
+        public void onDataChanged() {
+            MainActivity.this.handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    MainActivity.this.onPhoneDataChanged();
+                }
+            });
+        }
+    };
+
+    private PhoneData phoneData() {
+        return PhoneData.get(((TelecomPlusApplication) getApplication()).vault);
+    }
+
+    private void onPhoneDataChanged() {
+        if (this.dashboard == null) {
+            return;
+        }
+        if (this.chatNumber != null) {
+            refreshChatMessages();
+        } else if (this.selectedTab == 6 || (this.selectedTab == 2 && !this.telephonySnapshot.hasActiveCall())) {
+            showCabinet();
+        }
+    }
+
+    private static final int[] AVATAR_COLORS = {Color.rgb(22, 101, 216), Color.rgb(14, 177, 202), Color.rgb(124, 77, 255), Color.rgb(245, 139, 49), Color.rgb(39, 155, 83), Color.rgb(214, 62, 98)};
+
+    private View avatar(String str, int i) {
+        String t = str == null ? "" : str.trim();
+        String initials = "•";
+        if (!t.isEmpty() && Character.isLetter(t.charAt(0))) {
+            String[] parts = t.split("\\s+");
+            initials = parts[0].substring(0, 1).toUpperCase();
+            if (parts.length > 1 && !parts[1].isEmpty()) {
+                initials += parts[1].substring(0, 1).toUpperCase();
+            }
+        } else if (!t.isEmpty()) {
+            initials = "#";
+        }
+        int color = AVATAR_COLORS[Math.abs(t.hashCode()) % AVATAR_COLORS.length];
+        TextView icon = circleIcon(initials, -1, color, i);
+        icon.setLayoutParams(new LinearLayout.LayoutParams(dp(i), dp(i)));
+        return icon;
+    }
+
+    private String timeLabel(long j) {
+        long now = System.currentTimeMillis();
+        java.util.Calendar a = java.util.Calendar.getInstance();
+        a.setTimeInMillis(j);
+        java.util.Calendar b = java.util.Calendar.getInstance();
+        b.setTimeInMillis(now);
+        if (a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) && a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR)) {
+            return new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(new Date(j));
+        }
+        return new java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(new Date(j));
+    }
+
+    private void dialNumber(final String str) {
+        this.chatNumber = null;
+        this.selectedTab = 2;
+        withMicPermission(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.runTelephony(new Callable<TelephonyResult<Void>>() {
+                    @Override
+                    public TelephonyResult<Void> call() {
+                        return MainActivity.this.telephony.placeCall(str, false);
+                    }
+                }, new TelephonyCallback<Void>() {
+                    @Override
+                    public void accept(TelephonyResult<Void> telephonyResult) {
+                        MainActivity.this.showTelephonyResult(telephonyResult);
+                    }
+                });
+            }
+        });
+        showCabinet();
+    }
+
+    private void openChat(String str) {
+        this.chatNumber = str;
+        this.selectedTab = 6;
+        phoneData().openThread(str);
+        showCabinet();
+    }
+
+    private void cabinetSegments(LinearLayout linearLayout) {
+        String[] names = {"Главная", "Услуги", "История"};
+        final int[] tabs = {0, 1, 3};
+        LinearLayout row = row();
+        for (int i = 0; i < 3; i++) {
+            final int tab = tabs[i];
+            boolean active = this.selectedTab == tab;
+            TextView t = label(names[i], 14, active ? -1 : BLUE_DARK, true);
+            t.setGravity(17);
+            t.setBackground(active ? gradient(BLUE, CYAN, 18) : rounded(-1, 18, BORDER, 1));
+            t.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.selectedTab = tab;
+                    MainActivity.this.showCabinet();
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), 1.0f);
+            if (i > 0) {
+                lp.leftMargin = dp(8);
+            }
+            row.addView(t, lp);
+        }
+        LinearLayout.LayoutParams rp = matchWrap();
+        rp.bottomMargin = dp(12);
+        linearLayout.addView(row, rp);
+    }
+
+    private void renderRecents(LinearLayout linearLayout) {
+        List<PhoneData.CallEntry> calls = phoneData().calls();
+        LinearLayout card = card();
+        LinearLayout head = row();
+        head.setGravity(16);
+        head.addView(label("Недавние вызовы", 18, BLUE_DARK, true), new LinearLayout.LayoutParams(0, -2, 1.0f));
+        if (!calls.isEmpty()) {
+            TextView clear = label("Очистить", 13, MUTED, false);
+            clear.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.phoneData().clearCalls();
+                }
+            });
+            head.addView(clear, wrap());
+        }
+        card.addView(head, matchWrap());
+        if (calls.isEmpty()) {
+            TextView empty = label("Вызовов пока нет", 14, MUTED, false);
+            empty.setPadding(0, dp(10), 0, 0);
+            card.addView(empty, matchWrap());
+        }
+        for (int i = 0; i < Math.min(calls.size(), 25); i++) {
+            final PhoneData.CallEntry e = calls.get(i);
+            LinearLayout row = row();
+            row.setGravity(16);
+            row.setPadding(0, dp(10), 0, dp(10));
+            String title = phoneData().title(e.number);
+            row.addView(avatar(title, 42));
+            LinearLayout col = column();
+            col.setPadding(dp(12), 0, dp(8), 0);
+            int color = e.dir == PhoneData.CALL_MISSED ? RED : TEXT;
+            col.addView(label(title, 16, color, true), matchWrap());
+            String arrow = e.dir == PhoneData.CALL_IN ? "↙ Входящий" : e.dir == PhoneData.CALL_OUT ? "↗ Исходящий" : "✕ Пропущенный";
+            String detail = arrow + " · " + timeLabel(e.time) + (e.duration > 0 ? " · " + formatDuration(e.duration) : "");
+            col.addView(label(detail, 12, MUTED, false), matchWrap());
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            TextView call = circleIcon("☎", -1, GREEN, 40);
+            call.setLayoutParams(new LinearLayout.LayoutParams(dp(40), dp(40)));
+            call.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.dialNumber(e.number);
+                }
+            });
+            row.addView(call);
+            TextView msg = circleIcon("✉", -1, BLUE, 40);
+            LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(40), dp(40));
+            ml.leftMargin = dp(8);
+            msg.setLayoutParams(ml);
+            msg.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.openChat(e.number);
+                }
+            });
+            row.addView(msg);
+            card.addView(row, matchWrap());
+        }
+        linearLayout.addView(card, cardMargin());
+    }
+
+    private void editContactDialog(final PhoneData.Contact contact, String presetNumber) {
+        LinearLayout form = column();
+        form.setPadding(dp(20), dp(8), dp(20), 0);
+        final EditText name = field("Имя", 8193);
+        final EditText number = field("Номер", 3);
+        if (contact != null) {
+            name.setText(contact.name);
+            number.setText(contact.number);
+        } else if (presetNumber != null) {
+            number.setText(presetNumber);
+        }
+        form.addView(name, new LinearLayout.LayoutParams(-1, dp(52)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(52));
+        lp.topMargin = dp(10);
+        form.addView(number, lp);
+        final boolean[] fav = {contact != null && contact.favorite};
+        final TextView star = label(fav[0] ? "★ В избранном" : "☆ В избранное", 15, ORANGE, true);
+        star.setPadding(0, dp(12), 0, 0);
+        star.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                fav[0] = !fav[0];
+                star.setText(fav[0] ? "★ В избранном" : "☆ В избранное");
+            }
+        });
+        form.addView(star, matchWrap());
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(contact == null ? "Новый контакт" : "Контакт").setView(form).setPositiveButton("Сохранить", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                String n = name.getText().toString().trim();
+                String num = number.getText().toString().trim();
+                if (num.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "Введите номер", 0).show();
+                    return;
+                }
+                if (contact == null) {
+                    PhoneData.Contact c = MainActivity.this.phoneData().addContact(n, num);
+                    if (fav[0]) {
+                        MainActivity.this.phoneData().updateContact(c, c.name, c.number, true);
+                    }
+                } else {
+                    MainActivity.this.phoneData().updateContact(contact, n.isEmpty() ? contact.name : n, num, fav[0]);
+                }
+                MainActivity.this.showCabinet();
+            }
+        }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null);
+        if (contact != null) {
+            b.setNeutralButton("Удалить", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i) {
+                    MainActivity.this.phoneData().removeContact(contact);
+                    MainActivity.this.showCabinet();
+                }
+            });
+        }
+        b.show();
+    }
+
+    private void renderContacts(LinearLayout linearLayout) {
+        LinearLayout head = column();
+        head.setPadding(dp(20), dp(18), dp(20), dp(18));
+        head.setBackground(gradient(BLUE, CYAN, 24));
+        head.addView(label("Телефонная книга", 22, -1, true), matchWrap());
+        head.addView(label("Контакты хранятся на устройстве в зашифрованном виде", 13, Color.rgb(222, 255, 244), false), matchWrap());
+        linearLayout.addView(head, matchWrap());
+        LinearLayout actions = row();
+        Button add = primary("＋ Контакт");
+        add.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.editContactDialog(null, null);
+            }
+        });
+        Button imp = secondary("Импорт");
+        imp.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (MainActivity.this.checkSelfPermission("android.permission.READ_CONTACTS") == 0) {
+                    MainActivity.this.importDeviceContacts();
+                } else {
+                    MainActivity.this.requestPermissions(new String[]{"android.permission.READ_CONTACTS"}, 4713);
+                }
+            }
+        });
+        actions.addView(add, new LinearLayout.LayoutParams(0, dp(50), 1.0f));
+        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(0, dp(50), 1.0f);
+        il.leftMargin = dp(10);
+        actions.addView(imp, il);
+        LinearLayout.LayoutParams ap = cardMargin();
+        linearLayout.addView(actions, ap);
+        final EditText search = field("Поиск по имени или номеру", 1);
+        search.setText(this.contactFilter);
+        search.setOnEditorActionListener(new android.widget.TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView textView, int i, android.view.KeyEvent keyEvent) {
+                MainActivity.this.contactFilter = textView.getText().toString();
+                MainActivity.this.showCabinet();
+                return true;
+            }
+        });
+        search.setImeOptions(3);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, dp(50));
+        sp.topMargin = dp(10);
+        linearLayout.addView(search, sp);
+        String q = this.contactFilter.trim().toLowerCase(java.util.Locale.ROOT);
+        String qd = q.replaceAll("[^0-9]", "");
+        List<PhoneData.Contact> all = phoneData().contacts();
+        LinearLayout card = card();
+        int shown = 0;
+        for (final PhoneData.Contact c : all) {
+            if (!q.isEmpty() && !c.name.toLowerCase(java.util.Locale.ROOT).contains(q) && (qd.isEmpty() || !c.number.contains(qd))) {
+                continue;
+            }
+            shown++;
+            LinearLayout row = row();
+            row.setGravity(16);
+            row.setPadding(0, dp(9), 0, dp(9));
+            row.addView(avatar(c.name, 44));
+            LinearLayout col = column();
+            col.setPadding(dp(12), 0, dp(8), 0);
+            col.addView(label((c.favorite ? "★ " : "") + c.name, 16, TEXT, true), matchWrap());
+            col.addView(label(PhoneData.pretty(c.number), 13, MUTED, false), matchWrap());
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            TextView call = circleIcon("☎", -1, GREEN, 40);
+            call.setLayoutParams(new LinearLayout.LayoutParams(dp(40), dp(40)));
+            call.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.dialNumber(c.number);
+                }
+            });
+            row.addView(call);
+            TextView msg = circleIcon("✉", -1, BLUE, 40);
+            LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(dp(40), dp(40));
+            ml.leftMargin = dp(8);
+            msg.setLayoutParams(ml);
+            msg.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.openChat(c.number);
+                }
+            });
+            row.addView(msg);
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.editContactDialog(c, null);
+                }
+            });
+            card.addView(row, matchWrap());
+        }
+        if (shown == 0) {
+            TextView empty = label(all.isEmpty() ? "Контактов пока нет. Добавьте вручную или импортируйте из телефона." : "Ничего не найдено", 14, MUTED, false);
+            empty.setGravity(17);
+            empty.setPadding(0, dp(16), 0, dp(16));
+            card.addView(empty, matchWrap());
+        }
+        linearLayout.addView(card, cardMargin());
+    }
+
+    private void importDeviceContacts() {
+        final android.content.Context ctx = this;
+        this.executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                final int n = MainActivity.this.phoneData().importDeviceContacts(ctx);
+                MainActivity.this.handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, n == 0 ? "Новых контактов нет" : "Импортировано контактов: " + n, 0).show();
+                        MainActivity.this.showCabinet();
+                    }
+                });
+            }
+        });
+    }
+
+    private void newMessageDialog() {
+        LinearLayout form = column();
+        form.setPadding(dp(20), dp(8), dp(20), 0);
+        final EditText number = field("Номер получателя", 3);
+        form.addView(number, new LinearLayout.LayoutParams(-1, dp(52)));
+        new AlertDialog.Builder(this).setTitle("Новое сообщение").setView(form).setPositiveButton("Написать", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                String num = number.getText().toString().trim();
+                if (num.isEmpty()) {
+                    return;
+                }
+                MainActivity.this.openChat(num);
+            }
+        }).setNeutralButton("Из контактов", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                MainActivity.this.pickContactForChat();
+            }
+        }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+    }
+
+    private void pickContactForChat() {
+        final List<PhoneData.Contact> all = phoneData().contacts();
+        if (all.isEmpty()) {
+            Toast.makeText(this, "В книге нет контактов", 0).show();
+            return;
+        }
+        String[] names = new String[all.size()];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = all.get(i).name + " · " + PhoneData.pretty(all.get(i).number);
+        }
+        new AlertDialog.Builder(this).setTitle("Выберите контакт").setItems(names, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                MainActivity.this.openChat(all.get(i).number);
+            }
+        }).show();
+    }
+
+    private void renderChats(LinearLayout linearLayout) {
+        LinearLayout head = column();
+        head.setPadding(dp(20), dp(18), dp(20), dp(18));
+        head.setBackground(gradient(PURPLE, BLUE, 24));
+        head.addView(label("Сообщения", 22, -1, true), matchWrap());
+        head.addView(label("Чаты и SMS через вашу телефонию", 13, Color.rgb(226, 224, 255), false), matchWrap());
+        linearLayout.addView(head, matchWrap());
+        Button add = primary("＋ Новое сообщение");
+        add.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.newMessageDialog();
+            }
+        });
+        LinearLayout.LayoutParams ap = cardMargin();
+        ap.height = dp(50);
+        linearLayout.addView(add, ap);
+        List<PhoneData.Thread> threads = phoneData().threads();
+        LinearLayout card = card();
+        if (threads.isEmpty()) {
+            TextView empty = label("Переписок пока нет", 14, MUTED, false);
+            empty.setGravity(17);
+            empty.setPadding(0, dp(16), 0, dp(16));
+            card.addView(empty, matchWrap());
+        }
+        for (final PhoneData.Thread t : threads) {
+            String title = phoneData().title(t.number);
+            LinearLayout row = row();
+            row.setGravity(16);
+            row.setPadding(0, dp(10), 0, dp(10));
+            row.addView(avatar(title, 46));
+            LinearLayout col = column();
+            col.setPadding(dp(12), 0, dp(8), 0);
+            col.addView(label(title, 16, TEXT, true), matchWrap());
+            String last = t.messages.isEmpty() ? "Нет сообщений" : (t.messages.get(t.messages.size() - 1).outgoing ? "Вы: " : "") + t.messages.get(t.messages.size() - 1).text;
+            TextView preview = label(last, 13, t.unread > 0 ? TEXT : MUTED, t.unread > 0);
+            preview.setSingleLine(true);
+            preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            col.addView(preview, matchWrap());
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            LinearLayout right = column();
+            right.setGravity(5);
+            right.addView(label(timeLabel(t.updated), 11, MUTED, false), wrap());
+            if (t.unread > 0) {
+                TextView badge = label(String.valueOf(t.unread), 11, -1, true);
+                badge.setGravity(17);
+                badge.setBackground(rounded(BLUE, 10, 0, 0));
+                LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(dp(22), dp(22));
+                bl.topMargin = dp(4);
+                right.addView(badge, bl);
+            }
+            row.addView(right, wrap());
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.openChat(t.number);
+                }
+            });
+            row.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View view) {
+                    new AlertDialog.Builder(MainActivity.this).setTitle("Удалить переписку?").setPositiveButton("Удалить", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                            MainActivity.this.phoneData().deleteThread(t.number);
+                        }
+                    }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+                    return true;
+                }
+            });
+            card.addView(row, matchWrap());
+        }
+        linearLayout.addView(card, cardMargin());
+    }
+
+    private void showChat() {
+        final String number = this.chatNumber;
+        this.root.removeAllViews();
+        LinearLayout column = column();
+        LinearLayout bar = row();
+        bar.setGravity(16);
+        bar.setPadding(dp(8), dp(8), dp(12), dp(8));
+        bar.setBackground(gradient(BLUE_DARK, BLUE, 0));
+        Button back = button("‹", -1, 0);
+        back.setTextSize(30.0f);
+        back.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.chatNumber = null;
+                MainActivity.this.showCabinet();
+            }
+        });
+        bar.addView(back, new LinearLayout.LayoutParams(dp(46), dp(46)));
+        bar.addView(avatar(phoneData().title(number), 40));
+        LinearLayout titles = column();
+        titles.setPadding(dp(12), 0, 0, 0);
+        titles.addView(label(phoneData().title(number), 18, -1, true), matchWrap());
+        titles.addView(label(PhoneData.pretty(number), 12, Color.rgb(214, 231, 255), false), matchWrap());
+        bar.addView(titles, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        TextView call = circleIcon("☎", -1, GREEN, 42);
+        call.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
+        call.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.dialNumber(number);
+            }
+        });
+        bar.addView(call);
+        column.addView(bar, new LinearLayout.LayoutParams(-1, dp(66)));
+        this.chatScroll = new ScrollView(this);
+        this.chatScroll.setBackgroundColor(BG);
+        this.chatMessages = column();
+        this.chatMessages.setPadding(dp(12), dp(12), dp(12), dp(12));
+        this.chatScroll.addView(this.chatMessages);
+        column.addView(this.chatScroll, new LinearLayout.LayoutParams(-1, 0, 1.0f));
+        LinearLayout input = row();
+        input.setGravity(16);
+        input.setPadding(dp(10), dp(8), dp(10), dp(8));
+        input.setBackgroundColor(-1);
+        final EditText text = field("Сообщение", 16385);
+        text.setSingleLine(false);
+        text.setMaxLines(4);
+        text.setMinHeight(dp(46));
+        text.setPadding(dp(16), dp(8), dp(16), dp(8));
+        input.addView(text, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        TextView send = circleIcon("➤", -1, BLUE, 46);
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(dp(46), dp(46));
+        sl.leftMargin = dp(8);
+        send.setLayoutParams(sl);
+        send.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String body = text.getText().toString().trim();
+                if (body.isEmpty()) {
+                    return;
+                }
+                text.setText("");
+                MainActivity.this.sendChatMessage(number, body);
+            }
+        });
+        input.addView(send);
+        column.addView(input, new LinearLayout.LayoutParams(-1, -2));
+        this.root.addView(column, new FrameLayout.LayoutParams(-1, -1));
+        refreshChatMessages();
+    }
+
+    private void sendChatMessage(String str, String str2) {
+        RingotelControl control = this.telephony.control();
+        if (control == null) {
+            phoneData().addMessage(str, null, true, str2, System.currentTimeMillis(), -1);
+            Toast.makeText(this, "Телефония не подключена — сообщение не отправлено", 1).show();
+            return;
+        }
+        control.sendText(str, str2);
+    }
+
+    private void refreshChatMessages() {
+        if (this.chatMessages == null || this.chatNumber == null) {
+            return;
+        }
+        PhoneData.Thread thread = phoneData().thread(this.chatNumber);
+        this.chatMessages.removeAllViews();
+        if (thread == null || thread.messages.isEmpty()) {
+            TextView empty = label("Напишите первое сообщение", 14, MUTED, false);
+            empty.setGravity(17);
+            empty.setPadding(0, dp(40), 0, 0);
+            this.chatMessages.addView(empty, matchWrap());
+        } else {
+            for (final PhoneData.Msg m : thread.messages) {
+                LinearLayout line = row();
+                line.setGravity(m.outgoing ? 5 : 3);
+                LinearLayout bubble = column();
+                bubble.setPadding(dp(14), dp(9), dp(14), dp(7));
+                bubble.setBackground(m.outgoing ? gradient(BLUE, CYAN, 18) : rounded(-1, 18, BORDER, 1));
+                TextView body = label(m.text, 15, m.outgoing ? -1 : TEXT, false);
+                body.setTextIsSelectable(true);
+                bubble.addView(body, wrap());
+                String meta = timeLabel(m.time) + (m.outgoing ? (m.status == -1 ? "  ! не отправлено" : m.status == 0 ? "  …" : m.status == 2 ? "  ✓✓" : "  ✓") : "");
+                TextView time = label(meta, 10, m.outgoing ? Color.rgb(214, 231, 255) : MUTED, false);
+                time.setGravity(5);
+                bubble.addView(time, matchWrap());
+                if (m.outgoing && m.status == -1) {
+                    bubble.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View view) {
+                            PhoneData.Thread tt = MainActivity.this.phoneData().thread(MainActivity.this.chatNumber);
+                            if (tt != null) {
+                                tt.messages.remove(m);
+                            }
+                            MainActivity.this.sendChatMessage(MainActivity.this.chatNumber, m.text);
+                        }
+                    });
+                }
+                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
+                bp.leftMargin = m.outgoing ? dp(60) : 0;
+                bp.rightMargin = m.outgoing ? 0 : dp(60);
+                line.addView(bubble, bp);
+                LinearLayout.LayoutParams lp = matchWrap();
+                lp.topMargin = dp(6);
+                this.chatMessages.addView(line, lp);
+            }
+        }
+        phoneData().markRead(this.chatNumber);
+        RingotelControl control = this.telephony.control();
+        if (control != null) {
+            control.markRead(this.chatNumber);
+        }
+        this.chatScroll.post(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.chatScroll.fullScroll(130);
+            }
+        });
+    }
+
+    private void handleLaunchIntent(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+        if (intent.getBooleanExtra(TelephonyService.EXTRA_ANSWER, false)) {
+            intent.removeExtra(TelephonyService.EXTRA_ANSWER);
+            withMicPermission(new Runnable() {
+                @Override
+                public void run() {
+                    MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                        @Override
+                        public TelephonyResult<Void> call() {
+                            return MainActivity.this.telephony.answer();
+                        }
+                    });
+                }
+            });
+            this.selectedTab = 2;
+            this.chatNumber = null;
+        }
+        String chat = intent.getStringExtra("open_chat");
+        if (chat != null) {
+            intent.removeExtra("open_chat");
+            this.chatNumber = chat;
+            this.selectedTab = 6;
+        }
+        if (this.dashboard != null) {
+            showCabinet();
+        }
+    }
+
+    private void ensureTelephonyService() {
+        if (this.serviceStarted || !this.telephonySnapshot.isProvisioned()) {
+            return;
+        }
+        this.serviceStarted = true;
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 4712);
+        }
+        TelephonyService.start(this);
+    }
+
+    private boolean batteryRestricted() {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            return pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName());
+        } catch (Exception unused) {
+            return false;
+        }
+    }
+
+    private void requestBatteryWhitelist() {
+        try {
+            Intent intent = new Intent("android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS");
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS"));
+            } catch (Exception unused) {
+            }
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleLaunchIntent(intent);
+    }
+
     private void showCabinet() {
+        if (this.chatNumber != null && this.selectedTab == 6) {
+            showChat();
+            return;
+        }
+        this.chatMessages = null;
         this.root.removeAllViews();
         LinearLayout column = column();
         column.addView(topBar(), new LinearLayout.LayoutParams(-1, dp(82)));
@@ -3029,14 +3746,33 @@ public final class MainActivity extends Activity {
         LinearLayout column2 = column();
         column2.setPadding(dp(14), dp(16), dp(14), dp(30));
         int i = this.selectedTab;
+        if (i == 0 || i == 1 || i == 3) {
+            cabinetSegments(column2);
+        }
         if (i == 0) {
             renderHome(column2);
         } else if (i == 1) {
             renderServices(column2);
         } else if (i == 2) {
+            if (this.telephonySnapshot.isProvisioned() && batteryRestricted()) {
+                TextView battery = warning("Чтобы входящие вызовы приходили при закрытом приложении, отключите ограничение батареи для Telecom+. Нажмите здесь.");
+                battery.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        MainActivity.this.requestBatteryWhitelist();
+                    }
+                });
+                LinearLayout.LayoutParams bw = matchWrap();
+                bw.bottomMargin = dp(12);
+                column2.addView(battery, bw);
+            }
             renderPhone(column2);
         } else if (i == 3) {
             renderHistory(column2);
+        } else if (i == 5) {
+            renderContacts(column2);
+        } else if (i == 6) {
+            renderChats(column2);
         } else {
             renderProfile(column2);
         }
@@ -3457,7 +4193,7 @@ public final class MainActivity extends Activity {
 
     private String tabTitle() {
         int i = this.selectedTab;
-        return i == 0 ? "Главная" : i == 1 ? "Услуги" : i == 2 ? "Телефон" : i == 3 ? this.historyMode == 0 ? "История средств" : "История звонков" : "Профиль";
+        return i == 0 ? "Главная" : i == 1 ? "Услуги" : i == 2 ? "Телефон" : i == 3 ? this.historyMode == 0 ? "История средств" : "История звонков" : i == 5 ? "Контакты" : i == 6 ? "Чаты" : "Профиль";
     }
 
     private static String telephonyStatusTitle(TelephonySnapshot telephonySnapshot) {
@@ -3588,11 +4324,15 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        phoneData().addListener(this.dataListener);
+        ensureTelephonyService();
         beginStartup();
+        handleLaunchIntent(getIntent());
     }
 
     @Override // android.app.Activity
     public void onDestroy() {
+        phoneData().removeListener(this.dataListener);
         clearPortalOtpUi(true);
         stopOtpTimer();
         stopAuthGuardTimer();
@@ -3613,8 +4353,15 @@ public final class MainActivity extends Activity {
     }
 
     @Override // android.app.Activity
+    public void onPause() {
+        TelecomPlusApplication.foreground = false;
+        super.onPause();
+    }
+
+    @Override // android.app.Activity
     public void onResume() {
         super.onResume();
+        TelecomPlusApplication.foreground = true;
         consumeRecentPortalOtp();
     }
 }

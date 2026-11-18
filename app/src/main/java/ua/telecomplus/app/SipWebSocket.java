@@ -28,6 +28,8 @@ final class SipWebSocket {
     private final SecureRandom random = new SecureRandom();
     private final Object writeLock = new Object();
     private volatile boolean closed;
+    private String basicUser;
+    private String basicPass;
     private SSLSocket socket;
     private InputStream in;
     private OutputStream out;
@@ -38,6 +40,11 @@ final class SipWebSocket {
         this.subProtocol = str2;
         this.userAgent = str3;
         this.listener = listener;
+    }
+
+    void setBasicAuth(String str, String str2) {
+        this.basicUser = str;
+        this.basicPass = str2;
     }
 
     void connect() throws Exception {
@@ -62,6 +69,7 @@ final class SipWebSocket {
                 + "Sec-WebSocket-Key: " + key + "\r\n"
                 + "Sec-WebSocket-Protocol: " + this.subProtocol + "\r\n"
                 + "Sec-WebSocket-Version: 13\r\n"
+                + (this.basicUser != null ? "Authorization: Basic " + Base64.encodeToString((this.basicUser + ":" + this.basicPass).getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP) + "\r\n" : "")
                 + "User-Agent: " + this.userAgent + "\r\n\r\n";
         this.out.write(request.getBytes(StandardCharsets.UTF_8));
         this.out.flush();

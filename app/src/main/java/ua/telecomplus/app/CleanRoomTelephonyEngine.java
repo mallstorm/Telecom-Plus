@@ -3,6 +3,7 @@ package ua.telecomplus.app;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import java.util.Arrays;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.json.JSONObject;
 import ua.telecomplus.app.TelephonyEngine;
 
@@ -14,6 +15,11 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
     private final Context context;
     private volatile SipUserAgent agent;
     private boolean incoming;
+    private volatile RingotelControl control;
+    private final CopyOnWriteArrayList<TelephonyEngine.Listener> observers = new CopyOnWriteArrayList<>();
+    private int callDir = -1;
+    private String callNumber = "";
+    private long connectedAt;
     private TelephonyEngine.Listener listener;
     private final RingotelProvisioningClient provisioning;
     private TelephonySnapshot snapshot = restoreSnapshot();
@@ -78,6 +84,22 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
         if (listener != null) {
             listener.onTelephonyChanged(telephonySnapshot);
         }
+        for (TelephonyEngine.Listener observer : this.observers) {
+            try {
+                observer.onTelephonyChanged(telephonySnapshot);
+            } catch (Exception unused) {
+            }
+        }
+    }
+
+    @Override // ua.telecomplus.app.TelephonyEngine
+    public void addObserver(TelephonyEngine.Listener listener) {
+        this.observers.addIfAbsent(listener);
+    }
+
+    @Override // ua.telecomplus.app.TelephonyEngine
+    public void removeObserver(TelephonyEngine.Listener listener) {
+        this.observers.remove(listener);
     }
 
     private void updateError(Exception exc) {
@@ -187,6 +209,9 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
                 update(copy(TelephonyRegistrationState.CONNECTING, "Подключение к серверу телефонии…"));
             }
             ua.start();
+            RingotelControl rc = new RingotelControl(this.context, PhoneData.get(this.vault), host, port, this.provisioning.terminalId(), termpass);
+            this.control = rc;
+            rc.start();
             return TelephonyResult.success(null);
         } catch (Exception e) {
             TelephonyLog.log("connect: " + e);
@@ -239,6 +264,11 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
         ua.setMicGranted(micGranted());
         try {
             this.incoming = false;
+            synchronized (this) {
+                this.callDir = PhoneData.CALL_OUT;
+                this.callNumber = SipUserAgent.normalizeNumber(str);
+                this.connectedAt = 0;
+            }
             ua.placeCall(str);
             return TelephonyResult.success(null);
         } catch (Exception e) {
@@ -360,9 +390,19 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             this.agent = null;
             this.incoming = false;
         }
+        RingotelControl rc = this.control;
+        this.control = null;
+        if (rc != null) {
+            rc.stop();
+        }
         if (ua != null) {
             ua.stop();
         }
+    }
+
+    @Override // ua.telecomplus.app.TelephonyEngine
+    public RingotelControl control() {
+        return this.control;
     }
 
     private synchronized void onRegistration(boolean z, String str, String str2) {
@@ -376,7 +416,14 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
 
     private synchronized void onIncomingCall(String str, String str2) {
         this.incoming = true;
+        this.callDir = PhoneData.CALL_IN;
+        this.callNumber = str == null ? "" : str;
+        this.connectedAt = 0;
         TelephonySnapshot s = this.snapshot;
+        String known = PhoneData.get(this.vault).nameFor(str);
+        if (known != null) {
+            str2 = known;
+        }
         String who = (str2 == null || str2.isEmpty()) ? str : str2 + " (" + str + ")";
         update(new TelephonySnapshot(s.registrationState, TelecomCallState.RINGING, s.phoneNumber, s.displayName, str, "Входящий вызов: " + who, false, false, AudioRoute.EARPIECE, 0L, s.supportedCodecs));
     }
@@ -384,6 +431,17 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
     private synchronized void onCallState(TelecomCallState telecomCallState, String str) {
         TelephonySnapshot s = this.snapshot;
         if (telecomCallState == TelecomCallState.ENDED || telecomCallState == TelecomCallState.FAILED) {
+            if (this.callDir >= 0 && !this.callNumber.isEmpty()) {
+                long now = System.currentTimeMillis();
+                if (this.connectedAt > 0) {
+                    PhoneData.get(this.vault).addCall(this.callNumber, this.callDir, this.connectedAt, (int) ((now - this.connectedAt) / 1000));
+                } else {
+                    PhoneData.get(this.vault).addCall(this.callNumber, this.callDir == PhoneData.CALL_IN ? PhoneData.CALL_MISSED : PhoneData.CALL_OUT, now, 0);
+                }
+            }
+            this.callDir = -1;
+            this.callNumber = "";
+            this.connectedAt = 0;
             this.incoming = false;
             update(new TelephonySnapshot(s.registrationState, TelecomCallState.IDLE, s.phoneNumber, s.displayName, "", str, false, false, AudioRoute.EARPIECE, 0L, s.supportedCodecs));
             return;
@@ -391,6 +449,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
         long started = s.callStartedAt;
         if ((telecomCallState == TelecomCallState.ACTIVE || telecomCallState == TelecomCallState.HELD) && started == 0) {
             started = System.currentTimeMillis();
+            this.connectedAt = started;
         }
         String remote = s.remoteNumber;
         if (telecomCallState == TelecomCallState.DIALING && str.startsWith("Вызов ")) {

@@ -8,6 +8,7 @@ public final class TelecomPlusApplication extends Application {
     SubscriberPortalGateway gateway;
     TelephonyEngine telephony;
     SecureVault vault;
+    static volatile boolean foreground;
 
     @Override // android.app.Application
     public void onCreate() {
