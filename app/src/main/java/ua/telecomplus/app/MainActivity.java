@@ -3182,13 +3182,13 @@ public final class MainActivity extends Activity {
         LinearLayout card = card();
         card.setPadding(dp(16), dp(6), dp(16), dp(6));
         card.addView(profileInfoRow("№", "Лицевой счёт", combineProfileValue(sp.accountId, sp.contractStatus), BLUE, SOFT_BLUE), matchWrap());
-        card.addView(profileDivider(), matchWrap());
+        card.addView(profileDivider(), lp(-1, dp(1), 0));
         card.addView(profileInfoRow("SIM", "Номер и регистрация", combineProfileValue(sp.phoneNumber, sp.registrationStatus), BLUE, SOFT_BLUE), matchWrap());
-        card.addView(profileDivider(), matchWrap());
+        card.addView(profileDivider(), lp(-1, dp(1), 0));
         card.addView(profileInfoRow("IT", "ITPhone ID", sp.itPhoneId, BLUE, SOFT_BLUE), matchWrap());
-        card.addView(profileDivider(), matchWrap());
+        card.addView(profileDivider(), lp(-1, dp(1), 0));
         card.addView(profileInfoRow("☎", "Контактный номер", sp.contactPhone, BLUE, SOFT_BLUE), matchWrap());
-        card.addView(profileDivider(), matchWrap());
+        card.addView(profileDivider(), lp(-1, dp(1), 0));
         card.addView(profileInfoRow("@", "Электронная почта", sp.email, BLUE, SOFT_BLUE), matchWrap());
         parent.addView(card, matchWrap());
         parent.addView(sectionTitle("Сессия", "Управление на этом устройстве"), sectionMargin());
@@ -3288,7 +3288,7 @@ public final class MainActivity extends Activity {
                         card.setPadding(dp(16), dp(4), dp(16), dp(4));
                         box.addView(card, matchWrap());
                     } else {
-                        card.addView(MainActivity.this.profileDivider(), matchWrap());
+                        card.addView(MainActivity.this.profileDivider(), MainActivity.this.lp(-1, MainActivity.this.dp(1), 0));
                     }
                     card.addView(MainActivity.this.serviceRow(it), matchWrap());
                     n++;
@@ -5796,7 +5796,7 @@ public final class MainActivity extends Activity {
                 parent.addView(cur, matchWrap());
                 last = g;
             } else {
-                cur.addView(profileDivider(), matchWrap());
+                cur.addView(profileDivider(), lp(-1, dp(1), 0));
             }
             cur.addView(txRow(tx), matchWrap());
             count++;
@@ -5860,13 +5860,13 @@ public final class MainActivity extends Activity {
         LinearLayout c1 = card();
         c1.setPadding(dp(14), dp(2), dp(14), dp(2));
         c1.addView(menuRow("₴", "Платежи и пополнения", "История платежей и движение средств", tabClick(3, 0)), matchWrap());
-        c1.addView(profileDivider(), matchWrap());
+        c1.addView(profileDivider(), lp(-1, dp(1), 0));
         c1.addView(menuRow("▣", "Расходы и детализация", "Звонки, интернет, SMS", tabClick(3, 1)), matchWrap());
-        c1.addView(profileDivider(), matchWrap());
+        c1.addView(profileDivider(), lp(-1, dp(1), 0));
         c1.addView(menuRow("★", "Мой тариф", "Пакет услуг и условия", tabClick(7, 0)), matchWrap());
-        c1.addView(profileDivider(), matchWrap());
+        c1.addView(profileDivider(), lp(-1, dp(1), 0));
         c1.addView(menuRow("☷", "Услуги", "Подключение и управление", tabClick(1, 0)), matchWrap());
-        c1.addView(profileDivider(), matchWrap());
+        c1.addView(profileDivider(), lp(-1, dp(1), 0));
         c1.addView(menuRow("☺", "Профиль", "Личные данные, номера, телефония", tabClick(9, 0)), matchWrap());
         LinearLayout.LayoutParams m1 = matchWrap();
         m1.topMargin = dp(14);
@@ -5877,7 +5877,7 @@ public final class MainActivity extends Activity {
         LinearLayout c2 = card();
         c2.setPadding(dp(14), dp(2), dp(14), dp(2));
         c2.addView(menuRow("☎", "Телефон Telecom+", telephonyStatusTitle(this.telephonySnapshot), tabClick(2, 0)), matchWrap());
-        c2.addView(profileDivider(), matchWrap());
+        c2.addView(profileDivider(), lp(-1, dp(1), 0));
         c2.addView(menuRow("?", "Поддержка", "Сайт оператора", new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -5927,7 +5927,7 @@ public final class MainActivity extends Activity {
         int i = 0;
         for (PackageBalance pb : d.packages) {
             if (i > 0) {
-                pk.addView(profileDivider(), matchWrap());
+                pk.addView(profileDivider(), lp(-1, dp(1), 0));
             }
             LinearLayout r = column();
             r.setPadding(0, dp(12), 0, dp(12));
@@ -5955,12 +5955,12 @@ public final class MainActivity extends Activity {
         LinearLayout info = card();
         info.setPadding(dp(16), dp(4), dp(16), dp(4));
         info.addView(kv("Номер", formatInternationalPhone(d.phoneNumber)), matchWrap());
-        info.addView(profileDivider(), matchWrap());
+        info.addView(profileDivider(), lp(-1, dp(1), 0));
         info.addView(kv("Исходящие за период", displayValue(d.outgoingSummary)), matchWrap());
         if (d.profile != null) {
-            info.addView(profileDivider(), matchWrap());
+            info.addView(profileDivider(), lp(-1, dp(1), 0));
             info.addView(kv("Действителен до", displayValue(d.profile.validUntil)), matchWrap());
-            info.addView(profileDivider(), matchWrap());
+            info.addView(profileDivider(), lp(-1, dp(1), 0));
             info.addView(kv("Подключён", displayValue(d.profile.connectionDate)), matchWrap());
         }
         TextView ih = label("Управление тарифом", 17, TEXT, true);
@@ -6048,7 +6048,7 @@ public final class MainActivity extends Activity {
                 parent.addView(cur, matchWrap());
                 last = g;
             } else {
-                cur.addView(profileDivider(), matchWrap());
+                cur.addView(profileDivider(), lp(-1, dp(1), 0));
             }
             LinearLayout row = row();
             row.setGravity(16);
