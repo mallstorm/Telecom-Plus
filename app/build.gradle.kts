@@ -14,13 +14,32 @@ android {
         versionName = "0.5.0-phone"
     }
 
+    signingConfigs {
+        create("fixed") {
+            storeFile = file("release.jks")
+            storePassword = "tpstore2026"
+            keyAlias = "telecomplus"
+            keyPassword = "tpstore2026"
+        }
+    }
+
+    flavorDimensions += "mode"
+    productFlavors {
+        create("full") { dimension = "mode" }
+        create("safe") { dimension = "mode" }
+    }
+
     buildFeatures {
         buildConfig = true
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("fixed")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("fixed")
         }
     }
 

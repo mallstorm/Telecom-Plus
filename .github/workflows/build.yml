@@ -20,17 +20,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14.3"
-      - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug
+      - name: Build release APKs (fixed signing key)
+        run: gradle --no-daemon :app:assembleFullRelease :app:assembleSafeRelease
+      - name: Collect APKs
+        run: |
+          mkdir out
+          cp app/build/outputs/apk/full/release/*.apk out/Telecom-Plus.apk
+          cp app/build/outputs/apk/safe/release/*.apk out/Telecom-Plus-safe.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: telecom-plus-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: telecom-plus
+          path: out/*.apk
       - name: Publish APK to release
         if: github.event_name == 'push' && github.ref_name == 'claude/restore-telecom-plus'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/*.apk Telecom-Plus.apk
           gh release delete latest-apk --yes --cleanup-tag || true
-          gh release create latest-apk Telecom-Plus.apk --title "Telecom+ (последняя сборка)" --notes "Debug APK, коммит ${GITHUB_SHA::7}" --target "$GITHUB_SHA" --prerelease
+          gh release create latest-apk out/Telecom-Plus.apk out/Telecom-Plus-safe.apk --title "Telecom+ (последняя сборка)" --notes "Release APK (постоянная подпись), коммит ${GITHUB_SHA::7}" --target "$GITHUB_SHA" --prerelease
