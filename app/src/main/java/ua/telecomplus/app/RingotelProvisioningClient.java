@@ -35,191 +35,126 @@ final class RingotelProvisioningClient {
         return jSONObject;
     }
 
+    /**
+     * Так регистрируется оригинальный IT Phone: обычный HTTPS POST /public (JSON {"method","params"}),
+     * соединение по IP без SNI, Host = intertelecom.ringotel.net:443, Connection: close.
+     */
     private JSONObject command(String str, JSONObject jSONObject) throws Exception {
-        String wsError;
-        try {
-            return commandWs(str, jSONObject);
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (IllegalStateException e2) {
-            throw e2;
-        } catch (Exception e3) {
-            wsError = String.valueOf(e3.getMessage());
-            TelephonyLog.log("Provisioning WS: " + str + " не удался: " + wsError);
-        }
-        try {
-            return commandHttp(str, jSONObject);
-        } catch (IllegalStateException e4) {
-            throw new IllegalStateException(e4.getMessage() + " (WebSocket: " + wsError + ")");
-        }
-    }
-
-    private static boolean trustedRedirect(java.net.URI uri) {
-        String h = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
-        return "https".equalsIgnoreCase(uri.getScheme()) && (h.equals("ringotel.net") || h.endsWith(".ringotel.net") || h.equals("ringotel.co") || h.endsWith(".ringotel.co") || h.endsWith(".ringotel.com") || h.endsWith(".ringotel.io"));
-    }
-
-    private JSONObject commandWs(String str, JSONObject jSONObject) throws Exception {
         int saved = SipWebSocket.savedDirectMode();
-        int[] order = saved == 2 ? new int[]{2, 1, 0} : saved == 0 && false ? new int[]{0, 1, 2} : (saved == 1 ? new int[]{1, 2, 0} : new int[]{1, 2, 0});
+        int[] order = saved == 0 ? new int[]{0, 1} : new int[]{1, 0};
         Exception last = null;
         for (int mode : order) {
             try {
-                TelephonyLog.log("Provisioning WS: режим " + mode + (mode == 0 ? " (с SNI)" : " (IP без SNI)"));
-                JSONObject r = commandWsAt(str, jSONObject, HOST, 443, "/", mode == 0 ? 0 : 4, mode);
-                SipWebSocket.saveDirectMode(mode);
+                TelephonyLog.log("Provisioning: " + str + ", режим " + (mode == 0 ? "IP без SNI" : "имя хоста (SNI)"));
+                JSONObject r = postPublic(str, jSONObject, mode == 0);
+                SipWebSocket.saveDirectMode(mode == 0 ? 0 : 1);
                 return r;
             } catch (IllegalStateException e) {
-                SipWebSocket.saveDirectMode(mode);
+                SipWebSocket.saveDirectMode(mode == 0 ? 0 : 1);
                 throw e;
             } catch (Exception e2) {
                 last = e2;
-                TelephonyLog.log("Provisioning WS: режим " + mode + " не подошёл: " + e2.getMessage());
+                TelephonyLog.log("Provisioning: режим не подошёл: " + e2.getMessage());
             }
         }
         throw last == null ? new java.io.IOException("нет соединения") : last;
     }
 
-    private JSONObject commandWsAt(String str, JSONObject jSONObject, String host, int port, String path, int depth, int mode) throws Exception {
-        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-        final String[] resp = {null};
-        SipWebSocket ws = new SipWebSocket(host, port, "json.api.smile-soft.com", "Ringotel", new SipWebSocket.Listener() {
-            @Override
-            public void onClosed(String reason) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onText(String text) {
-                if (resp[0] == null) {
-                    resp[0] = text;
-                }
-                latch.countDown();
-            }
-        });
+    private JSONObject postPublic(String method, JSONObject params, boolean noSni) throws Exception {
+        JSONObject req = new JSONObject();
+        req.put("method", method);
+        req.put("params", params);
+        byte[] body = req.toString().getBytes(StandardCharsets.UTF_8);
+        javax.net.ssl.SSLContext ctx = javax.net.ssl.SSLContext.getInstance("TLS");
+        ctx.init(null, null, null);
+        javax.net.ssl.SSLSocket socket = (javax.net.ssl.SSLSocket) ctx.getSocketFactory().createSocket();
         try {
-            ws.setPath(path);
-            ws.applyDirectMode(mode);
-            TelephonyLog.log("Provisioning WS: подключение " + host + ":" + port + path + ", метод " + str);
-            try {
-                ws.connect();
-            } catch (SipWebSocket.RedirectException re) {
-                TelephonyLog.log("Provisioning WS: редирект на " + re.location);
-                if (depth >= 4 || re.location.isEmpty()) {
-                    throw re;
-                }
-                java.net.URI target = new java.net.URI("https://" + host + ":" + port + path).resolve(re.location);
-                if (!trustedRedirect(target)) {
-                    throw new java.io.IOException("редирект на неизвестный хост " + target.getHost());
-                }
-                String np = target.getRawPath() == null || target.getRawPath().isEmpty() ? "/" : target.getRawPath();
-                if (target.getRawQuery() != null) {
-                    np = np + "?" + target.getRawQuery();
-                }
-                return commandWsAt(str, jSONObject, target.getHost(), target.getPort() > 0 ? target.getPort() : 443, np, depth + 1, mode);
+            if (noSni) {
+                String[] o = SipWebSocket.resolveRingotelIp().split("\\.");
+                byte[] b = new byte[]{(byte) Integer.parseInt(o[0]), (byte) Integer.parseInt(o[1]), (byte) Integer.parseInt(o[2]), (byte) Integer.parseInt(o[3])};
+                socket.connect(new java.net.InetSocketAddress(java.net.InetAddress.getByAddress(b), 443), 15000);
+            } else {
+                socket.connect(new java.net.InetSocketAddress(HOST, 443), 15000);
             }
-            JSONObject msg = new JSONObject();
-            msg.put("method", str);
-            msg.put("params", jSONObject);
-            msg.put("id", 1);
-            ws.sendText(msg.toString());
-            if (!latch.await(25, java.util.concurrent.TimeUnit.SECONDS)) {
-                throw new java.io.IOException("сервер не ответил за 25 секунд");
+            socket.setSoTimeout(25000);
+            socket.startHandshake();
+            if (!RingotelHostnameVerifier.INSTANCE.verify(HOST, socket.getSession())) {
+                throw new java.io.IOException("Сертификат сервера телефонии не подходит для " + HOST);
             }
-            if (resp[0] == null || resp[0].trim().isEmpty()) {
+            String head = "POST /public HTTP/1.1\r\nHost: " + HOST + ":443\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: " + body.length + "\r\n\r\n";
+            OutputStream out = socket.getOutputStream();
+            out.write(head.getBytes(StandardCharsets.UTF_8));
+            out.write(body);
+            out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            byte[] all = readLimited(new BufferedInputStream(socket.getInputStream()));
+            String text = new String(all, StandardCharsets.UTF_8);
+            int split = text.indexOf("\r\n\r\n");
+            if (split < 0) {
                 throw new java.io.IOException("соединение закрыто без ответа");
             }
-            JSONObject root = new JSONObject(resp[0].trim());
-            TelephonyLog.log("Provisioning WS: ответ на " + str + ", поля " + root.keys().hasNext() + " " + (root.has("error") ? "error" : "result"));
+            String header = text.substring(0, split);
+            String payload = text.substring(split + 4);
+            String status = header.split("\r\n", 2)[0];
+            int code = 0;
+            try {
+                code = Integer.parseInt(status.split(" ")[1]);
+            } catch (Exception ignored) {
+            }
+            if (header.toLowerCase(Locale.ROOT).contains("transfer-encoding: chunked")) {
+                payload = dechunk(payload);
+            }
+            payload = payload.trim();
+            TelephonyLog.log("Provisioning: " + method + " -> HTTP " + code + ", " + payload.length() + " байт");
+            if (code >= 300 && code < 400) {
+                throw new java.io.IOException("сервер перенаправил запрос (HTTP " + code + ")");
+            }
+            if (payload.isEmpty()) {
+                throw new IllegalStateException("Сервер телефонии вернул пустой ответ (HTTP " + code + ")");
+            }
+            JSONObject root = new JSONObject(payload);
             JSONObject err = root.optJSONObject("error");
+            JSONObject res = root.optJSONObject("result");
+            if (res != null) {
+                return res;
+            }
             if (err != null) {
                 throw new IllegalStateException(serverMessage(err, "Ошибка сервера телефонии"));
             }
-            JSONObject res = root.optJSONObject("result");
-            return res != null ? res : root;
-        } finally {
-            ws.close();
-        }
-    }
-
-    private JSONObject commandHttp(String str, JSONObject jSONObject) throws Exception {
-        return commandHttpAt(str, jSONObject, REGISTRATION_ENDPOINT, 0);
-    }
-
-    private JSONObject commandHttpAt(String str, JSONObject jSONObject, String endpoint, int depth) throws Exception {
-        byte[] bArr;
-        JSONObject jSONObject2 = new JSONObject();
-        jSONObject2.put("method", str);
-        jSONObject2.put("params", jSONObject);
-        String jSONObject3 = jSONObject2.toString();
-        Charset charset = StandardCharsets.UTF_8;
-        byte[] bytes = jSONObject3.getBytes(charset);
-        HttpsURLConnection httpsURLConnection = (HttpsURLConnection) new URL(endpoint).openConnection();
-        httpsURLConnection.setHostnameVerifier(RingotelHostnameVerifier.INSTANCE);
-        httpsURLConnection.setConnectTimeout(15000);
-        httpsURLConnection.setReadTimeout(25000);
-        httpsURLConnection.setUseCaches(false);
-        httpsURLConnection.setInstanceFollowRedirects(false);
-        httpsURLConnection.setRequestMethod("POST");
-        httpsURLConnection.setRequestProperty("Accept", "application/json");
-        httpsURLConnection.setRequestProperty("Content-Type", "application/json");
-        httpsURLConnection.setRequestProperty("User-Agent", "TelecomPlus/0.2.24-alpha26.5");
-        httpsURLConnection.setFixedLengthStreamingMode(bytes.length);
-        httpsURLConnection.setDoOutput(true);
-        try {
-            OutputStream outputStream = httpsURLConnection.getOutputStream();
-            try {
-                outputStream.write(bytes);
-                outputStream.close();
-                int responseCode = httpsURLConnection.getResponseCode();
-                if (responseCode >= 301 && responseCode <= 308 && responseCode != 304) {
-                    String loc = httpsURLConnection.getHeaderField("Location");
-                    TelephonyLog.log("Provisioning HTTP: редирект " + responseCode + " на " + loc);
-                    if (loc != null && depth < 4) {
-                        java.net.URI target = new java.net.URI(endpoint).resolve(loc);
-                        if (trustedRedirect(target)) {
-                            httpsURLConnection.disconnect();
-                            return commandHttpAt(str, jSONObject, target.toString(), depth + 1);
-                        }
-                    }
-                }
-                InputStream errorStream = (responseCode < 200 || responseCode >= 400) ? httpsURLConnection.getErrorStream() : httpsURLConnection.getInputStream();
-                if (errorStream == null) {
-                    bArr = new byte[0];
-                } else {
-                    BufferedInputStream bufferedInputStream = new BufferedInputStream(errorStream);
-                    try {
-                        byte[] readLimited = readLimited(bufferedInputStream);
-                        bufferedInputStream.close();
-                        bArr = readLimited;
-                    } finally {
-                    }
-                }
-                String trim = new String(bArr, charset).trim();
-                TelephonyLog.log("Provisioning HTTP: " + str + " -> HTTP " + responseCode + ", " + bArr.length + " байт");
-                if (trim.isEmpty()) {
-                    throw new IllegalStateException("Сервер телефонии вернул пустой ответ (HTTP " + responseCode + ")");
-                }
-                JSONObject jSONObject4 = new JSONObject(trim);
-                if (responseCode < 200 || responseCode >= 300) {
-                    throw new IllegalStateException(serverMessage(jSONObject4, "HTTP " + responseCode));
-                }
-                JSONObject optJSONObject = jSONObject4.optJSONObject("error");
-                if (optJSONObject != null) {
-                    throw new IllegalStateException(serverMessage(optJSONObject, "Ошибка сервера телефонии"));
-                }
-                JSONObject optJSONObject2 = jSONObject4.optJSONObject("result");
-                if (optJSONObject2 != null) {
-                    jSONObject4 = optJSONObject2;
-                }
-                httpsURLConnection.disconnect();
-                return jSONObject4;
-            } finally {
+            if (code != 200) {
+                throw new IllegalStateException(serverMessage(root, "HTTP " + code));
             }
-        } catch (Throwable th) {
-            httpsURLConnection.disconnect();
-            throw th;
+            return root;
+        } finally {
+            try {
+                socket.close();
+            } catch (Exception ignored) {
+            }
         }
+    }
+
+    private static String dechunk(String s) {
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        while (i < s.length()) {
+            int e = s.indexOf("\r\n", i);
+            if (e < 0) {
+                break;
+            }
+            int n;
+            try {
+                n = Integer.parseInt(s.substring(i, e).trim().split(";")[0], 16);
+            } catch (Exception ex) {
+                break;
+            }
+            if (n == 0) {
+                break;
+            }
+            i = e + 2;
+            sb.append(s, i, Math.min(s.length(), i + n));
+            i += n + 2;
+        }
+        return sb.toString();
     }
 
     private static String digits(String str) {
@@ -307,7 +242,6 @@ final class RingotelProvisioningClient {
         JSONObject jSONObject = new JSONObject();
         jSONObject.put(registrationKey(normalizeRegistrationIdentity), normalizeRegistrationIdentity);
         jSONObject.put("code", digits);
-        jSONObject.put("termid", terminalId());
         jSONObject.put("country", Locale.getDefault().getCountry());
         return command("registrationComplete", jSONObject);
     }
@@ -327,7 +261,7 @@ final class RingotelProvisioningClient {
 
     public JSONObject completeOAuth() throws Exception {
         JSONObject jSONObject = new JSONObject();
-        jSONObject.put("oauth", true);
+        jSONObject.put("oauth", "true");
         jSONObject.put("termid", terminalId());
         jSONObject.put("country", Locale.getDefault().getCountry());
         return command("registrationComplete", jSONObject);
