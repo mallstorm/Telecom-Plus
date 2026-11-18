@@ -218,7 +218,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             return;
         }
         probedAt = System.currentTimeMillis();
-        TelephonyLog.pin("probe: старт (diag-7), логин/пароль перебираем");
+        TelephonyLog.pin("probe: старт (diag-8), логин/пароль перебираем");
         final String termid = this.provisioning.terminalId();
         new Thread(new Runnable() {
             @Override
@@ -239,7 +239,41 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
                     }
                 } catch (Exception ignored) {
                 }
-                String[] uas = {"Ringotel", "null"};
+                try {
+                    java.util.ArrayList<String> ips = new java.util.ArrayList<>(SipWebSocket.resolveAllRingotelIps());
+                    if (!ips.contains(SipWebSocket.FALLBACK_IP)) {
+                        ips.add(SipWebSocket.FALLBACK_IP);
+                    }
+                    TelephonyLog.pin("DNS=" + SipWebSocket.resolveAllRingotelIps() + " выбран=" + SipWebSocket.resolveRingotelIp());
+                    for (String ip : ips) {
+                        SipWebSocket w = new SipWebSocket("intertelecom.ringotel.net", 443, "json.api.smile-soft.com", "Ringotel", new SipWebSocket.Listener() {
+                            @Override
+                            public void onClosed(String str) {
+                            }
+
+                            @Override
+                            public void onText(String str) {
+                            }
+                        });
+                        try {
+                            w.setDirect(ip, "intertelecom.ringotel.net");
+                            w.setBasicAuth(users[0], termpass);
+                            w.connect();
+                            TelephonyLog.pin("probe ip " + ip + " -> 101 OK");
+                        } catch (Exception e) {
+                            String m = String.valueOf(e.getMessage());
+                            TelephonyLog.pin("probe ip " + ip + " -> " + (m.indexOf(" | ") > 0 ? m.substring(0, m.indexOf(" | ")) : m));
+                        } finally {
+                            try {
+                                w.close();
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    TelephonyLog.pin("probe ip: сбой " + t);
+                }
+                String[] uas = {"Ringotel"};
                 for (int mode = 1; mode >= 0; mode--) {
                     for (String ua : uas) {
                         for (int i = 0; i < users.length; i++) {
@@ -310,7 +344,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             }
             probeAuth(jSONObject, termpass);
             stopAgent();
-            TelephonyLog.log("connect (diag-7): server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
+            TelephonyLog.log("connect (diag-8): server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
             try {
                 JSONObject dump = new JSONObject(jSONObject.toString());
                 if (dump.has("termpass")) {

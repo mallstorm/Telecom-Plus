@@ -64,15 +64,34 @@ final class SipWebSocket {
     static final String PREF = "ringotel_direct";
     static final String FALLBACK_IP = "3.68.50.43";
 
-    static String resolveRingotelIp() {
+    private static volatile String cachedIp;
+
+    /** Все IPv4-адреса сервера Ringotel (для диагностики). */
+    static java.util.List<String> resolveAllRingotelIps() {
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
         try {
-            String ip = java.net.InetAddress.getByName(RingotelHostnameVerifier.HOST).getHostAddress();
-            if (ip != null && ip.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
-                return ip;
+            for (java.net.InetAddress a : java.net.InetAddress.getAllByName(RingotelHostnameVerifier.HOST)) {
+                String ip = a.getHostAddress();
+                if (ip != null && ip.matches("\\d+\\.\\d+\\.\\d+\\.\\d+") && !out.contains(ip)) {
+                    out.add(ip);
+                }
             }
         } catch (Exception unused) {
         }
-        return FALLBACK_IP;
+        return out;
+    }
+
+    /** Один и тот же адрес для регистрации и подключения (у сервера может быть несколько узлов). */
+    static String resolveRingotelIp() {
+        String c = cachedIp;
+        if (c != null) {
+            return c;
+        }
+        java.util.List<String> all = resolveAllRingotelIps();
+        String ip = all.contains(FALLBACK_IP) || all.isEmpty() ? FALLBACK_IP : all.get(0);
+        cachedIp = ip;
+        TelephonyLog.log("Ringotel IP: DNS=" + all + ", выбран " + ip);
+        return ip;
     }
 
     /** 0 = обычное подключение, 1 = IP без SNI + Host=имя, 2 = IP без SNI + Host=IP. */
