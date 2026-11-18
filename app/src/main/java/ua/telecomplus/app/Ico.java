@@ -93,4 +93,45 @@ final class Ico {
             icon.draw(canvas);
         }
     }
+
+    /** Кольцевой индикатор с процентом в центре. */
+    static final class RingView extends android.view.View {
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF rect = new android.graphics.RectF();
+        private final int percent;
+        private final int color;
+        private final int track;
+        private final String text;
+
+        RingView(Context c, int percent, int color, int track, String text) {
+            super(c);
+            this.percent = percent;
+            this.color = color;
+            this.track = track;
+            this.text = text;
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float w = getWidth();
+            float h = getHeight();
+            float stroke = Math.min(w, h) * 0.13f;
+            float r = Math.min(w, h) / 2f - stroke / 2f;
+            rect.set(w / 2f - r, h / 2f - r, w / 2f + r, h / 2f + r);
+            paint.setStyle(android.graphics.Paint.Style.STROKE);
+            paint.setStrokeWidth(stroke);
+            paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+            paint.setColor(track);
+            canvas.drawArc(rect, 0, 360, false, paint);
+            paint.setColor(color);
+            canvas.drawArc(rect, -90, 360f * Math.max(2, percent) / 100f, false, paint);
+            paint.setStyle(android.graphics.Paint.Style.FILL);
+            paint.setColor(0xFF0A2A66);
+            paint.setTextAlign(android.graphics.Paint.Align.CENTER);
+            paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            paint.setTextSize(Math.min(w, h) * 0.26f);
+            float y = h / 2f - (paint.ascent() + paint.descent()) / 2f;
+            canvas.drawText(text, w / 2f, y, paint);
+        }
+    }
 }
