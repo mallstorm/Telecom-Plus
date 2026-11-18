@@ -13,6 +13,8 @@ interface TelephonyEngine {
 
     void close();
 
+    boolean incomingRinging();
+
     TelephonyResult<Void> confirmProvisioningOtp(String str);
 
     TelephonyResult<Void> connect();

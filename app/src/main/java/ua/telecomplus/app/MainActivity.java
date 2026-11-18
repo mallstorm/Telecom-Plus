@@ -991,6 +991,11 @@ public final class MainActivity extends Activity {
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$0(TelephonySnapshot telephonySnapshot) {
         this.telephonySnapshot = telephonySnapshot;
+        if (this.dashboard != null && this.telephony.incomingRinging()) {
+            this.selectedTab = 2;
+            showCabinet();
+            return;
+        }
         if (this.dashboard == null || this.selectedTab != 2) {
             return;
         }
@@ -1143,7 +1148,247 @@ public final class MainActivity extends Activity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$renderPhone$57(EditText editText, View view) {
-        runTelephony(new defpackage.m(this, editText, 3), new a(this, 5));
+        final String number = editText.getText().toString();
+        withMicPermission(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.runTelephony(new Callable<TelephonyResult<Void>>() {
+                    @Override
+                    public TelephonyResult<Void> call() {
+                        return MainActivity.this.telephony.placeCall(number, false);
+                    }
+                }, new TelephonyCallback<Void>() {
+                    @Override
+                    public void accept(TelephonyResult<Void> telephonyResult) {
+                        MainActivity.this.showTelephonyResult(telephonyResult);
+                    }
+                });
+            }
+        });
+    }
+
+    private Runnable pendingMicAction;
+
+    private void withMicPermission(Runnable runnable) {
+        if (checkSelfPermission("android.permission.RECORD_AUDIO") == 0) {
+            runnable.run();
+            return;
+        }
+        this.pendingMicAction = runnable;
+        requestPermissions(new String[]{"android.permission.RECORD_AUDIO"}, 4711);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int i, String[] strArr, int[] iArr) {
+        super.onRequestPermissionsResult(i, strArr, iArr);
+        if (i == 4711) {
+            Runnable runnable = this.pendingMicAction;
+            this.pendingMicAction = null;
+            if (iArr.length == 0 || iArr[0] != 0) {
+                Toast.makeText(this, "Нет доступа к микрофону — собеседник вас не услышит", 1).show();
+            }
+            if (runnable != null) {
+                runnable.run();
+            }
+        }
+    }
+
+    private void telephonyAction(final Callable<TelephonyResult<Void>> callable) {
+        runTelephony(callable, new TelephonyCallback<Void>() {
+            @Override
+            public void accept(TelephonyResult<Void> telephonyResult) {
+                MainActivity.this.showTelephonyResult(telephonyResult);
+            }
+        });
+    }
+
+    private void showTelephonyLog() {
+        TextView textView = new TextView(this);
+        textView.setTextIsSelectable(true);
+        textView.setTextSize(11.0f);
+        textView.setTypeface(Typeface.MONOSPACE);
+        textView.setPadding(dp(14), dp(10), dp(14), dp(10));
+        final String dump = TelephonyLog.dump();
+        textView.setText(dump.isEmpty() ? "Журнал пуст" : dump);
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(textView);
+        new AlertDialog.Builder(this).setTitle("Журнал телефонии").setView(scrollView).setPositiveButton("Поделиться", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                android.content.Intent intent = new android.content.Intent("android.intent.action.SEND");
+                intent.setType("text/plain");
+                intent.putExtra("android.intent.extra.TEXT", dump);
+                MainActivity.this.startActivity(android.content.Intent.createChooser(intent, "Журнал телефонии"));
+            }
+        }).setNeutralButton("Очистить", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                TelephonyLog.clear();
+            }
+        }).setNegativeButton("Закрыть", (DialogInterface.OnClickListener) null).show();
+    }
+
+    private void renderCallPanel(LinearLayout linearLayout, final TelephonySnapshot telephonySnapshot) {
+        final boolean ringingIn = this.telephony.incomingRinging();
+        LinearLayout card = card();
+        TextView who = label(telephonySnapshot.remoteNumber.isEmpty() ? "Вызов" : formatInternationalPhone(telephonySnapshot.remoteNumber), 26, BLUE_DARK, true);
+        who.setGravity(17);
+        card.addView(who, matchWrap());
+        TextView state = label(ringingIn ? "Входящий вызов" : telephonySnapshot.statusMessage, 14, MUTED, false);
+        state.setGravity(17);
+        card.addView(state, matchWrap());
+        if (telephonySnapshot.callState == TelecomCallState.ACTIVE || telephonySnapshot.callState == TelecomCallState.HELD) {
+            android.widget.Chronometer chronometer = new android.widget.Chronometer(this);
+            chronometer.setTextSize(22.0f);
+            chronometer.setTextColor(GREEN);
+            chronometer.setGravity(17);
+            chronometer.setBase(android.os.SystemClock.elapsedRealtime() - Math.max(0L, System.currentTimeMillis() - telephonySnapshot.callStartedAt));
+            chronometer.start();
+            LinearLayout.LayoutParams layoutParams = matchWrap();
+            layoutParams.topMargin = dp(8);
+            card.addView(chronometer, layoutParams);
+        }
+        if (ringingIn) {
+            LinearLayout row = row();
+            Button decline = button("Отклонить", -1, Color.rgb(214, 62, 62));
+            decline.setTypeface(Typeface.DEFAULT, 1);
+            decline.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                        @Override
+                        public TelephonyResult<Void> call() {
+                            return MainActivity.this.telephony.hangup();
+                        }
+                    });
+                }
+            });
+            Button accept = button("Ответить", -1, GREEN);
+            accept.setTypeface(Typeface.DEFAULT, 1);
+            accept.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.withMicPermission(new Runnable() {
+                        @Override
+                        public void run() {
+                            MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                                @Override
+                                public TelephonyResult<Void> call() {
+                                    return MainActivity.this.telephony.answer();
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+            LinearLayout.LayoutParams l1 = new LinearLayout.LayoutParams(0, dp(56), 1.0f);
+            LinearLayout.LayoutParams l2 = new LinearLayout.LayoutParams(0, dp(56), 1.0f);
+            l2.leftMargin = dp(10);
+            row.addView(decline, l1);
+            row.addView(accept, l2);
+            LinearLayout.LayoutParams rp = matchWrap();
+            rp.topMargin = dp(18);
+            card.addView(row, rp);
+            linearLayout.addView(card, cardMargin());
+            return;
+        }
+        LinearLayout toggles = row();
+        Button mute = button(telephonySnapshot.muted ? "🔇 Микрофон выкл" : "🎤 Микрофон", BLUE_DARK, Color.rgb(242, 247, 253));
+        mute.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                final boolean target = !telephonySnapshot.muted;
+                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                    @Override
+                    public TelephonyResult<Void> call() {
+                        return MainActivity.this.telephony.setMuted(target);
+                    }
+                });
+            }
+        });
+        final boolean speaker = telephonySnapshot.audioRoute == AudioRoute.SPEAKER;
+        Button spk = button(speaker ? "🔊 Динамик вкл" : "🔈 Динамик", BLUE_DARK, Color.rgb(242, 247, 253));
+        spk.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                    @Override
+                    public TelephonyResult<Void> call() {
+                        return MainActivity.this.telephony.setAudioRoute(speaker ? AudioRoute.EARPIECE : AudioRoute.SPEAKER);
+                    }
+                });
+            }
+        });
+        Button hold = button(telephonySnapshot.held ? "▶ Снять" : "⏸ Удержание", BLUE_DARK, Color.rgb(242, 247, 253));
+        hold.setEnabled(telephonySnapshot.callState == TelecomCallState.ACTIVE || telephonySnapshot.callState == TelecomCallState.HELD);
+        hold.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                final boolean target = !telephonySnapshot.held;
+                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                    @Override
+                    public TelephonyResult<Void> call() {
+                        return MainActivity.this.telephony.setHeld(target);
+                    }
+                });
+            }
+        });
+        for (Button b : new Button[]{mute, spk, hold}) {
+            b.setTextSize(12.0f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(50), 1.0f);
+            if (b != mute) {
+                lp.leftMargin = dp(8);
+            }
+            toggles.addView(b, lp);
+        }
+        LinearLayout.LayoutParams tp = matchWrap();
+        tp.topMargin = dp(16);
+        card.addView(toggles, tp);
+        String[][] keys = {new String[]{"1", "2", "3"}, new String[]{"4", "5", "6"}, new String[]{"7", "8", "9"}, new String[]{"*", "0", "#"}};
+        for (String[] keyRow : keys) {
+            LinearLayout kr = row();
+            LinearLayout.LayoutParams krp = matchWrap();
+            krp.topMargin = dp(8);
+            for (int j = 0; j < keyRow.length; j++) {
+                final String key = keyRow[j];
+                Button kb = button(key, BLUE_DARK, Color.rgb(242, 247, 253));
+                kb.setTextSize(22.0f);
+                kb.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                            @Override
+                            public TelephonyResult<Void> call() {
+                                return MainActivity.this.telephony.sendDtmf(key.charAt(0));
+                            }
+                        });
+                    }
+                });
+                LinearLayout.LayoutParams klp = new LinearLayout.LayoutParams(0, dp(50), 1.0f);
+                if (j > 0) {
+                    klp.leftMargin = dp(8);
+                }
+                kr.addView(kb, klp);
+            }
+            card.addView(kr, krp);
+        }
+        Button end = button("Завершить", -1, Color.rgb(214, 62, 62));
+        end.setTypeface(Typeface.DEFAULT, 1);
+        end.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                    @Override
+                    public TelephonyResult<Void> call() {
+                        return MainActivity.this.telephony.hangup();
+                    }
+                });
+            }
+        });
+        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(56));
+        ep.topMargin = dp(16);
+        card.addView(end, ep);
+        linearLayout.addView(card, cardMargin());
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -2340,6 +2585,10 @@ public final class MainActivity extends Activity {
             linearLayout.addView(info("Телефонный пароль после активации хранится только в Android Keystore в зашифрованном виде."), cardMargin());
             return;
         }
+        if (telephonySnapshot.hasActiveCall()) {
+            renderCallPanel(linearLayout, telephonySnapshot);
+            return;
+        }
         SubscriberProfile subscriberProfile2 = dashboardSnapshot == null ? new SubscriberProfile() : dashboardSnapshot.profile;
         DashboardSnapshot dashboardSnapshot3 = this.dashboard;
         String presentValue4 = dashboardSnapshot3 != null ? presentValue(dashboardSnapshot3.phoneNumber) : "";
@@ -2408,13 +2657,21 @@ public final class MainActivity extends Activity {
         row3.addView(button2, layoutParams4);
         card2.addView(row3, matchWrap5);
         linearLayout.addView(card2, cardMargin());
-        linearLayout.addView(warning("Профиль и серверная активация работают в Live. Голосовой медиамодуль ещё закрыт feature-gate: до добавления проверенных ABI-библиотек DSP/Opus/G.722/G.729A приложение явно отклоняет звонок, а не показывает ложное соединение."), cardMargin());
+        linearLayout.addView(info("Голос: G.711 (PCMA/PCMU) через SIP по WSS. Если звонок не проходит — откройте «Журнал телефонии» и отправьте его разработчику."), cardMargin());
         View secondary3 = secondary("Проверить подключение телефонии");
         secondary3.setOnClickListener(new defpackage.d(this, 11));
         linearLayout.addView(secondary3, cardMargin());
         View secondary4 = secondary("Открыть историю звонков");
         secondary4.setOnClickListener(new defpackage.d(this, 12));
         linearLayout.addView(secondary4, cardMargin());
+        Button logButton = secondary("Журнал телефонии");
+        logButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.showTelephonyLog();
+            }
+        });
+        linearLayout.addView(logButton, cardMargin());
     }
 
     private void renderProfile(LinearLayout linearLayout) {
@@ -3125,9 +3382,22 @@ public final class MainActivity extends Activity {
         if (telephonySnapshot == null) {
             return "Не активирован";
         }
-        switch (AnonymousClass4.$SwitchMap$ua$telecomplus$app$TelephonyRegistrationState[telephonySnapshot.registrationState.ordinal()]) {
+        switch (telephonySnapshot.registrationState) {
+            case OTP_REQUESTED:
+                return "Ожидает код входа";
+            case PROVISIONED:
+                return "Профиль активирован";
+            case CONNECTING:
+                return "Подключение…";
+            case ONLINE:
+                return telephonySnapshot.hasActiveCall() ? "Идёт вызов" : "На связи";
+            case OFFLINE:
+                return "Нет связи с сервером";
+            case ERROR:
+                return "Ошибка";
+            default:
+                return "Не активирован";
         }
-        return "Не активирован";
     }
 
     private View topBar() {
@@ -3224,6 +3494,18 @@ public final class MainActivity extends Activity {
         registerOtpCallReceiver();
         this.telephonySnapshot = this.telephony.snapshot();
         this.telephony.setListener(new a(this, 9));
+        if (this.telephonySnapshot.isProvisioned()) {
+            runTelephony(new Callable<TelephonyResult<Void>>() {
+                @Override
+                public TelephonyResult<Void> call() {
+                    return MainActivity.this.telephony.connect();
+                }
+            }, new TelephonyCallback<Void>() {
+                @Override
+                public void accept(TelephonyResult<Void> telephonyResult) {
+                }
+            });
+        }
         beginStartup();
     }
 

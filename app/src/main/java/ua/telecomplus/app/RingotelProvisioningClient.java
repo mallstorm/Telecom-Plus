@@ -167,7 +167,7 @@ final class RingotelProvisioningClient {
         return str + " (код " + optInt + ")";
     }
 
-    private String terminalId() {
+    String terminalId() {
         String string = Settings.Secure.getString(this.context.getContentResolver(), "android_id");
         return (string == null || string.trim().isEmpty()) ? "telecom-plus" : string.trim();
     }

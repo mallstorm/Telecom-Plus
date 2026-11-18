@@ -1,6 +1,7 @@
 package ua.telecomplus.app;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import java.util.Arrays;
 import org.json.JSONObject;
 import ua.telecomplus.app.TelephonyEngine;
@@ -8,9 +9,11 @@ import ua.telecomplus.app.TelephonyEngine;
 /* compiled from: r8-map-id-5d3ff7fb16909a7e6ee886360b4644e2c341965d08cc2e57589da44a1b2babc1 */
 /* loaded from: classes.dex */
 final class CleanRoomTelephonyEngine implements TelephonyEngine {
-    private static final String MEDIA_BLOCK_MESSAGE = "Телефонный профиль активирован. Голосовой медиамодуль пока не включён в alpha26: нет проверенной сборки DSP/Opus/G.722/G.729A для ABI устройства. Приложение не имитирует успешный звонок.";
     private static final String PENDING_PHONE_KEY = "telephony_pending_phone_v1";
     private static final String PROFILE_KEY = "telephony_profile_v1";
+    private final Context context;
+    private volatile SipUserAgent agent;
+    private boolean incoming;
     private TelephonyEngine.Listener listener;
     private final RingotelProvisioningClient provisioning;
     private TelephonySnapshot snapshot = restoreSnapshot();
@@ -18,6 +21,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
 
     public CleanRoomTelephonyEngine(Context context, SecureVault secureVault) {
         this.vault = secureVault;
+        this.context = context.getApplicationContext();
         this.provisioning = new RingotelProvisioningClient(context);
     }
 
@@ -65,7 +69,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
     private static TelephonySnapshot snapshotFromProfile(JSONObject jSONObject, TelephonyRegistrationState telephonyRegistrationState, String str) {
         String optString = jSONObject.optString("registration_identity", "");
         String optString2 = jSONObject.optString("phone", jSONObject.optString("number", ""));
-        return new TelephonySnapshot(telephonyRegistrationState, TelecomCallState.IDLE, RingotelProvisioningClient.isEmailIdentity(optString2) ? "" : optString2, jSONObject.optString("login", jSONObject.optString("userid", jSONObject.optString("name", jSONObject.optString("displayname", optString)))), "", str, false, false, AudioRoute.EARPIECE, 0L, Arrays.asList("Opus", "G.722", "G.729A", "PCMA", "PCMU"));
+        return new TelephonySnapshot(telephonyRegistrationState, TelecomCallState.IDLE, RingotelProvisioningClient.isEmailIdentity(optString2) ? "" : optString2, jSONObject.optString("login", jSONObject.optString("userid", jSONObject.optString("name", jSONObject.optString("displayname", optString)))), "", str, false, false, AudioRoute.EARPIECE, 0L, Arrays.asList("PCMA", "PCMU"));
     }
 
     private synchronized void update(TelephonySnapshot telephonySnapshot) {
@@ -82,11 +86,22 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> answer() {
-        return callUnavailable();
+        SipUserAgent ua = this.agent;
+        if (ua == null) {
+            return callUnavailable();
+        }
+        ua.setMicGranted(micGranted());
+        try {
+            ua.answer();
+            return TelephonyResult.success(null);
+        } catch (Exception e) {
+            return TelephonyResult.failure("ANSWER_FAILED", safeMessage(e));
+        }
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public void close() {
+        stopAgent();
         setListener(null);
     }
 
@@ -111,6 +126,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             this.vault.put(PROFILE_KEY, jSONObject.toString());
             this.vault.remove(PENDING_PHONE_KEY);
             update(snapshotFromProfile(jSONObject, TelephonyRegistrationState.PROVISIONED, "Телефонный профиль активирован"));
+            connect();
             return TelephonyResult.success(null);
         } catch (Exception e) {
             update(copy(TelephonyRegistrationState.OTP_REQUESTED, safeMessage(e)));
@@ -123,18 +139,74 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
         if (!this.snapshot.isProvisioned()) {
             return TelephonyResult.failure("NOT_PROVISIONED", "Сначала активируйте телефонию по короткому звонку");
         }
-        update(copy(TelephonyRegistrationState.OFFLINE, MEDIA_BLOCK_MESSAGE));
-        return TelephonyResult.failure("MEDIA_COMPONENT_MISSING", MEDIA_BLOCK_MESSAGE);
+        SipUserAgent running = this.agent;
+        if (running != null && running.isRegistered()) {
+            return TelephonyResult.success(null);
+        }
+        String str = this.vault.get(PROFILE_KEY);
+        if (str == null || str.trim().isEmpty()) {
+            return TelephonyResult.failure("NOT_PROVISIONED", "Профиль телефонии не найден");
+        }
+        try {
+            JSONObject jSONObject = new JSONObject(str);
+            String termpass = jSONObject.optString("termpass", "").trim();
+            if (termpass.isEmpty()) {
+                return TelephonyResult.failure("NO_TERMINAL_PASSWORD", "В профиле нет терминального пароля — активируйте телефонию заново");
+            }
+            String server = jSONObject.optString("server", "intertelecom.ringotel.net:443");
+            String host = server;
+            int port = 443;
+            int idx = server.lastIndexOf(':');
+            if (idx > 0) {
+                host = server.substring(0, idx);
+                try {
+                    port = Integer.parseInt(server.substring(idx + 1));
+                } catch (NumberFormatException unused) {
+                }
+            }
+            stopAgent();
+            TelephonyLog.log("connect: server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
+            final SipUserAgent ua = new SipUserAgent(this.context, host, port, this.provisioning.terminalId(), termpass, "Ringotel", new SipUserAgent.Events() {
+                @Override
+                public void onRegistration(boolean z, String str2, String str3) {
+                    CleanRoomTelephonyEngine.this.onRegistration(z, str2, str3);
+                }
+
+                @Override
+                public void onCallState(TelecomCallState telecomCallState, String str2) {
+                    CleanRoomTelephonyEngine.this.onCallState(telecomCallState, str2);
+                }
+
+                @Override
+                public void onIncomingCall(String str2, String str3) {
+                    CleanRoomTelephonyEngine.this.onIncomingCall(str2, str3);
+                }
+            });
+            synchronized (this) {
+                this.agent = ua;
+                update(copy(TelephonyRegistrationState.CONNECTING, "Подключение к серверу телефонии…"));
+            }
+            ua.start();
+            return TelephonyResult.success(null);
+        } catch (Exception e) {
+            TelephonyLog.log("connect: " + e);
+            synchronized (this) {
+                update(copy(TelephonyRegistrationState.OFFLINE, safeMessage(e)));
+            }
+            return TelephonyResult.failure("CONNECT_FAILED", safeMessage(e));
+        }
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> disconnect() {
+        stopAgent();
         update(copy(this.snapshot.isProvisioned() ? TelephonyRegistrationState.PROVISIONED : TelephonyRegistrationState.UNPROVISIONED, "Телефония отключена"));
         return TelephonyResult.success(null);
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> forgetProvisioning() {
+        stopAgent();
         this.vault.remove(PROFILE_KEY);
         this.vault.remove(PENDING_PHONE_KEY);
         update(TelephonySnapshot.unprovisioned());
@@ -143,15 +215,35 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> hangup() {
-        return callUnavailable();
+        SipUserAgent ua = this.agent;
+        if (ua == null || !ua.hasCall()) {
+            return callUnavailable();
+        }
+        ua.hangup();
+        return TelephonyResult.success(null);
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> placeCall(String str, boolean z) {
-        if (this.snapshot.isProvisioned()) {
-            return (str != null ? str.replaceAll("[^0-9*#+]", "") : "").isEmpty() ? TelephonyResult.failure("EMPTY_NUMBER", "Введите номер") : TelephonyResult.failure("MEDIA_COMPONENT_MISSING", MEDIA_BLOCK_MESSAGE);
+        if (!this.snapshot.isProvisioned()) {
+            return TelephonyResult.failure("NOT_PROVISIONED", "Сначала активируйте телефонию");
         }
-        return TelephonyResult.failure("NOT_PROVISIONED", "Сначала активируйте телефонию");
+        if (SipUserAgent.normalizeNumber(str).isEmpty()) {
+            return TelephonyResult.failure("EMPTY_NUMBER", "Введите номер");
+        }
+        SipUserAgent ua = this.agent;
+        if (ua == null || !ua.isRegistered()) {
+            connect();
+            return TelephonyResult.failure("NOT_CONNECTED", "Телефония ещё подключается. Повторите через несколько секунд.");
+        }
+        ua.setMicGranted(micGranted());
+        try {
+            this.incoming = false;
+            ua.placeCall(str);
+            return TelephonyResult.success(null);
+        } catch (Exception e) {
+            return TelephonyResult.failure("CALL_FAILED", safeMessage(e));
+        }
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
@@ -174,17 +266,38 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> sendDtmf(char c) {
-        return callUnavailable();
+        SipUserAgent ua = this.agent;
+        if (ua == null || !ua.hasCall()) {
+            return callUnavailable();
+        }
+        ua.sendDtmf(c);
+        return TelephonyResult.success(null);
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> setAudioRoute(AudioRoute audioRoute) {
-        return callUnavailable();
+        SipUserAgent ua = this.agent;
+        if (ua == null || !ua.hasCall()) {
+            return callUnavailable();
+        }
+        ua.setSpeaker(audioRoute == AudioRoute.SPEAKER);
+        TelephonySnapshot s = this.snapshot;
+        update(new TelephonySnapshot(s.registrationState, s.callState, s.phoneNumber, s.displayName, s.remoteNumber, s.statusMessage, s.muted, s.held, audioRoute, s.callStartedAt, s.supportedCodecs));
+        return TelephonyResult.success(null);
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> setHeld(boolean z) {
-        return callUnavailable();
+        SipUserAgent ua = this.agent;
+        if (ua == null || !ua.hasCall()) {
+            return callUnavailable();
+        }
+        try {
+            ua.setHeld(z);
+            return TelephonyResult.success(null);
+        } catch (Exception e) {
+            return TelephonyResult.failure("HOLD_FAILED", safeMessage(e));
+        }
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
@@ -197,7 +310,14 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> setMuted(boolean z) {
-        return callUnavailable();
+        SipUserAgent ua = this.agent;
+        if (ua == null || !ua.hasCall()) {
+            return callUnavailable();
+        }
+        ua.setMuted(z);
+        TelephonySnapshot s = this.snapshot;
+        update(new TelephonySnapshot(s.registrationState, s.callState, s.phoneNumber, s.displayName, s.remoteNumber, s.statusMessage, z, s.held, s.audioRoute, s.callStartedAt, s.supportedCodecs));
+        return TelephonyResult.success(null);
     }
 
     @Override // ua.telecomplus.app.TelephonyEngine
@@ -212,6 +332,70 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
 
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> transfer(String str) {
-        return callUnavailable();
+        SipUserAgent ua = this.agent;
+        if (ua == null || !ua.hasCall()) {
+            return callUnavailable();
+        }
+        try {
+            ua.transfer(str);
+            return TelephonyResult.success(null);
+        } catch (Exception e) {
+            return TelephonyResult.failure("TRANSFER_FAILED", safeMessage(e));
+        }
+    }
+
+    @Override // ua.telecomplus.app.TelephonyEngine
+    public synchronized boolean incomingRinging() {
+        return this.incoming && this.snapshot.callState == TelecomCallState.RINGING;
+    }
+
+    private boolean micGranted() {
+        return this.context.checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void stopAgent() {
+        SipUserAgent ua;
+        synchronized (this) {
+            ua = this.agent;
+            this.agent = null;
+            this.incoming = false;
+        }
+        if (ua != null) {
+            ua.stop();
+        }
+    }
+
+    private synchronized void onRegistration(boolean z, String str, String str2) {
+        if (this.agent == null || !this.snapshot.isProvisioned()) {
+            return;
+        }
+        TelephonySnapshot s = this.snapshot;
+        String number = s.phoneNumber;
+        update(new TelephonySnapshot(z ? TelephonyRegistrationState.ONLINE : TelephonyRegistrationState.OFFLINE, s.callState, number, s.displayName, s.remoteNumber, str, s.muted, s.held, s.audioRoute, s.callStartedAt, s.supportedCodecs));
+    }
+
+    private synchronized void onIncomingCall(String str, String str2) {
+        this.incoming = true;
+        TelephonySnapshot s = this.snapshot;
+        String who = (str2 == null || str2.isEmpty()) ? str : str2 + " (" + str + ")";
+        update(new TelephonySnapshot(s.registrationState, TelecomCallState.RINGING, s.phoneNumber, s.displayName, str, "Входящий вызов: " + who, false, false, AudioRoute.EARPIECE, 0L, s.supportedCodecs));
+    }
+
+    private synchronized void onCallState(TelecomCallState telecomCallState, String str) {
+        TelephonySnapshot s = this.snapshot;
+        if (telecomCallState == TelecomCallState.ENDED || telecomCallState == TelecomCallState.FAILED) {
+            this.incoming = false;
+            update(new TelephonySnapshot(s.registrationState, TelecomCallState.IDLE, s.phoneNumber, s.displayName, "", str, false, false, AudioRoute.EARPIECE, 0L, s.supportedCodecs));
+            return;
+        }
+        long started = s.callStartedAt;
+        if ((telecomCallState == TelecomCallState.ACTIVE || telecomCallState == TelecomCallState.HELD) && started == 0) {
+            started = System.currentTimeMillis();
+        }
+        String remote = s.remoteNumber;
+        if (telecomCallState == TelecomCallState.DIALING && str.startsWith("Вызов ")) {
+            remote = str.substring(6);
+        }
+        update(new TelephonySnapshot(s.registrationState, telecomCallState, s.phoneNumber, s.displayName, remote, str, s.muted, telecomCallState == TelecomCallState.HELD, s.audioRoute, started, s.supportedCodecs));
     }
 }
