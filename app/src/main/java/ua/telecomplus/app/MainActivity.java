@@ -5157,7 +5157,9 @@ public final class MainActivity extends Activity {
         field.setText(this.phone);
         field.setTextSize(18.0f);
         card.addView(field, new LinearLayout.LayoutParams(-1, dp(56)));
+        markAutofill(field, "username");
         final EditText field2 = field("Пароль", 129);
+        markAutofill(field2, "password");
         field2.setTextSize(18.0f);
         LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, dp(56));
         fp.topMargin = dp(12);
@@ -6088,4 +6090,13 @@ public final class MainActivity extends Activity {
         }
     }
     private int callFilter;
+
+    private void markAutofill(EditText e, String hint) {
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            e.setImportantForAutofill(1);
+            e.setAutofillHints(new String[]{hint});
+        }
+        e.setContentDescription(hint.equals("password") ? "Пароль" : "Логин");
+        e.setTag(hint);
+    }
 }

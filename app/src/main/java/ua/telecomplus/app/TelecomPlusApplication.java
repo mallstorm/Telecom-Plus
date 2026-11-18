@@ -17,6 +17,7 @@ public final class TelecomPlusApplication extends Application {
         this.vault = secureVault;
         this.gateway = new IntertelecomPortalClient(secureVault);
         this.telephony = new CleanRoomTelephonyEngine(this, this.vault);
+        SessionKeepAliveJob.schedule(this);
     }
 
     @Override // android.app.Application
