@@ -94,18 +94,18 @@ public final class MainActivity extends Activity {
     private boolean startupCompleted;
     private TelephonyEngine telephony;
     private PortalWebAuthBridge webAuth;
-    private static final int BLUE = Color.rgb(21, 101, 216);
+    private static final int BLUE = Color.rgb(6, 84, 218);
     private static final int BLUE_DARK = Color.rgb(10, 42, 102);
-    private static final int YELLOW = Color.rgb(255, 200, 30);
+    private static final int YELLOW = Color.rgb(255, 203, 0);
     private static final int CYAN = Color.rgb(38, 132, 235);
     private static final int PURPLE = Color.rgb(63, 81, 181);
     private static final int ORANGE = Color.rgb(245, 166, 35);
-    private static final int BG = Color.rgb(243, 247, 253);
-    private static final int TEXT = Color.rgb(24, 36, 56);
-    private static final int MUTED = Color.rgb(100, 114, 138);
+    private static final int BG = Color.rgb(247, 250, 255);
+    private static final int TEXT = Color.rgb(9, 28, 69);
+    private static final int MUTED = Color.rgb(128, 144, 168);
     private static final int GREEN = Color.rgb(34, 160, 90);
     private static final int RED = Color.rgb(210, 52, 56);
-    private static final int BORDER = Color.rgb(222, 230, 242);
+    private static final int BORDER = Color.rgb(228, 237, 249);
     private static final int SOFT_BLUE = Color.rgb(228, 239, 255);
     private static final int SOFT_CYAN = Color.rgb(226, 240, 255);
     private static final int SOFT_PURPLE = Color.rgb(232, 238, 252);
@@ -2810,7 +2810,7 @@ public final class MainActivity extends Activity {
     }
 
     private void renderHistory(LinearLayout parent) {
-        parent.addView(pageHeader("Платежи", this.historyMode == 0 ? "Движение средств" : "Детализация звонков"), matchWrap());
+        parent.addView(subHeader(this.historyMode == 0 ? "Платежи и движение средств" : "Расходы и детализация", 4), matchWrap());
         LinearLayout seg = row();
         seg.setPadding(dp(4), dp(4), dp(4), dp(4));
         seg.setBackground(rounded(-1, 24, BORDER, 1));
@@ -2833,146 +2833,211 @@ public final class MainActivity extends Activity {
         if (d == null) {
             return;
         }
-        LinearLayout top = row();
-        top.setGravity(16);
-        top.setPadding(dp(2), dp(4), dp(2), dp(16));
-        top.addView(circleIcon("T+", BLUE_DARK, YELLOW, 48), lp(dp(48), dp(48), 0));
-        LinearLayout who = column();
-        who.setPadding(dp(12), 0, 0, 0);
-        who.addView(label(greeting(), 13, MUTED, false), matchWrap());
-        who.addView(label(formatInternationalPhone(d.phoneNumber), 19, BLUE_DARK, true), matchWrap());
-        top.addView(who, lp(0, -2, 1.0f));
-        top.addView(roundRefresh(), lp(dp(46), dp(46), 0));
-        parent.addView(top, matchWrap());
+        LinearLayout bar = row();
+        bar.setGravity(16);
+        bar.setPadding(dp(2), dp(4), dp(2), dp(12));
+        LinearLayout marks = row();
+        marks.setGravity(80);
+        int[] hs = {9, 16, 24};
+        for (int h : hs) {
+            View b = new View(this);
+            b.setBackground(rounded(YELLOW, 2, 0, 0));
+            LinearLayout.LayoutParams bp = lp(dp(6), dp(h), 0);
+            bp.rightMargin = dp(3);
+            marks.addView(b, bp);
+        }
+        bar.addView(marks, lp(dp(28), dp(27), 0));
+        TextView brand = label("Telecom", 24, TEXT, true);
+        brand.setPadding(dp(10), 0, 0, 0);
+        bar.addView(brand, wrap());
+        bar.addView(label("+", 24, YELLOW, true), wrap());
+        bar.addView(new View(this), lp(0, 1, 1.0f));
+        bar.addView(roundRefresh(), lp(dp(44), dp(44), 0));
+        parent.addView(bar, matchWrap());
         if (this.showingCachedData) {
             parent.addView(warning("Показаны сохранённые данные от " + DateFormat.getDateTimeInstance(3, 3).format(new Date(d.updatedAt)) + ". Обновление не выполнено" + (this.refreshWarning.isEmpty() ? "." : ": " + this.refreshWarning)), cardMargin());
         }
-        FrameLayout wallet = new FrameLayout(this);
-        wallet.setBackground(gradient(YELLOW, Color.rgb(255, 160, 0), 32));
-        wallet.setElevation(dp(4));
-        View c1 = new View(this);
-        c1.setBackground(rounded(Color.argb(60, 255, 255, 255), 110, 0, 0));
-        FrameLayout.LayoutParams p1 = new FrameLayout.LayoutParams(dp(200), dp(200));
-        p1.gravity = 53;
-        p1.topMargin = dp(-70);
-        p1.rightMargin = dp(-60);
-        wallet.addView(c1, p1);
-        View c2 = new View(this);
-        c2.setBackground(rounded(Color.argb(40, 255, 255, 255), 60, 0, 0));
-        FrameLayout.LayoutParams p2 = new FrameLayout.LayoutParams(dp(120), dp(120));
-        p2.gravity = 83;
-        p2.leftMargin = dp(-40);
-        p2.bottomMargin = dp(-50);
-        wallet.addView(c2, p2);
-        LinearLayout wc = column();
-        wc.setPadding(dp(24), dp(22), dp(24), dp(22));
-        wc.addView(label("Баланс", 14, Color.rgb(90, 70, 0), true), matchWrap());
-        wc.addView(label(d.balance, 46, BLUE_DARK, true), matchWrap());
-        TextView avail = label("Доступно для перевода: " + displayValue(d.transferableBalance), 13, Color.rgb(90, 70, 0), false);
-        avail.setPadding(0, dp(2), 0, dp(18));
-        wc.addView(avail, matchWrap());
-        LinearLayout br = row();
-        Button topUp = button("Пополнить", -1, BLUE_DARK);
-        topUp.setTypeface(Typeface.DEFAULT, 1);
-        topUp.setOnClickListener(new defpackage.d(this, 2));
-        Button spend = button("Расходы", BLUE_DARK, Color.argb(120, 255, 255, 255));
-        spend.setTypeface(Typeface.DEFAULT, 1);
-        spend.setOnClickListener(new defpackage.d(this, 3));
-        br.addView(topUp, lp(0, dp(50), 1.0f));
-        LinearLayout.LayoutParams sl = lp(0, dp(50), 1.0f);
-        sl.leftMargin = dp(10);
-        br.addView(spend, sl);
-        wc.addView(br, matchWrap());
-        wallet.addView(wc, new FrameLayout.LayoutParams(-1, -2));
-        parent.addView(wallet, matchWrap());
+        FrameLayout bal = new FrameLayout(this);
+        bal.setBackground(gradient(Color.rgb(11, 100, 244), Color.rgb(0, 74, 203), 22));
+        bal.setElevation(dp(4));
+        View ring = new View(this);
+        ring.setBackground(rounded(Color.argb(24, 107, 169, 255), 110, 0, 0));
+        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(dp(210), dp(210));
+        rp.gravity = 85;
+        rp.rightMargin = dp(-100);
+        rp.bottomMargin = dp(-120);
+        bal.addView(ring, rp);
+        LinearLayout bc = column();
+        bc.setPadding(dp(22), dp(20), dp(22), dp(18));
+        bc.addView(label("Баланс", 13, Color.rgb(212, 232, 255), false), matchWrap());
+        bc.addView(label(d.balance, 36, -1, true), matchWrap());
+        View line = new View(this);
+        line.setBackgroundColor(Color.argb(77, 255, 255, 255));
+        LinearLayout.LayoutParams ln = lp(-1, 1, 0);
+        ln.topMargin = dp(14);
+        ln.bottomMargin = dp(12);
+        bc.addView(line, ln);
+        LinearLayout nr = row();
+        nr.setGravity(16);
+        nr.addView(label("Мой номер", 12, Color.rgb(212, 232, 255), false), lp(0, -2, 1.0f));
+        nr.addView(label(formatInternationalPhone(d.phoneNumber), 14, -1, true), wrap());
+        bc.addView(nr, matchWrap());
+        bal.addView(bc, new FrameLayout.LayoutParams(-1, -2));
+        TextView plus = circleIcon("+", BLUE_DARK, YELLOW, 46);
+        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(dp(46), dp(46));
+        pp.gravity = 53;
+        pp.topMargin = dp(26);
+        pp.rightMargin = dp(20);
+        plus.setOnClickListener(new defpackage.d(this, 2));
+        bal.addView(plus, pp);
+        parent.addView(bal, matchWrap());
+        LinearLayout tar = row();
+        tar.setGravity(16);
+        tar.setPadding(dp(14), dp(14), dp(14), dp(14));
+        tar.setBackground(rounded(-1, 20, BORDER, 1));
+        tar.addView(circleIcon("★", Color.rgb(228, 169, 0), Color.rgb(255, 245, 191), 47), lp(dp(47), dp(47), 0));
+        LinearLayout tc = column();
+        tc.setPadding(dp(12), 0, dp(8), 0);
+        tc.addView(label("Мой тариф", 12, MUTED, false), matchWrap());
+        tc.addView(label(displayValue(d.tariffName), 16, TEXT, true), matchWrap());
+        tc.addView(label(displayValue(d.status), 12, MUTED, false), matchWrap());
+        tar.addView(tc, lp(0, -2, 1.0f));
+        tar.addView(label("›", 26, TEXT, false), wrap());
+        tar.setOnClickListener(tabClick(7, 0));
+        LinearLayout.LayoutParams tm = matchWrap();
+        tm.topMargin = dp(10);
+        parent.addView(tar, tm);
         if (!d.packages.isEmpty()) {
-            parent.addView(sectionTitle("Пакеты", "Остатки минут и трафика"), sectionMargin());
-            android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
-            hs.setHorizontalScrollBarEnabled(false);
-            LinearLayout pr = row();
-            int[] ringCols = {BLUE, ORANGE, CYAN, GREEN, PURPLE};
-            int idx = 0;
-            for (PackageBalance pb : d.packages) {
-                LinearLayout card = column();
-                card.setGravity(1);
-                card.setPadding(dp(14), dp(18), dp(14), dp(16));
-                card.setBackground(rounded(-1, 26, BORDER, 1));
-                card.addView(new Ico.RingView(this, pb.progressPercent, ringCols[idx % 5], Color.rgb(230, 237, 248), pb.progressPercent + "%"), lp(dp(92), dp(92), 0));
-                TextView t = label(pb.title, 15, BLUE_DARK, true);
-                t.setGravity(17);
-                t.setMaxLines(2);
-                t.setPadding(0, dp(12), 0, dp(2));
-                card.addView(t, matchWrap());
-                TextView sub = label(pb.subtitle, 12, MUTED, false);
-                sub.setGravity(17);
+            LinearLayout st = row();
+            int n = Math.min(3, d.packages.size());
+            for (int i = 0; i < n; i++) {
+                PackageBalance pb = d.packages.get(i);
+                LinearLayout t = column();
+                t.setPadding(dp(12), dp(12), dp(12), dp(14));
+                t.setBackground(rounded(-1, 18, BORDER, 1));
+                String g = i == 0 ? "◷" : i == 1 ? "☎" : "✉";
+                t.addView(circleIcon(g, i == 0 ? BLUE : Color.rgb(228, 169, 0), i == 0 ? SOFT_BLUE : Color.rgb(255, 245, 191), 30), lp(dp(30), dp(30), 0));
+                TextView tl = label(pb.title, 12, TEXT, true);
+                tl.setMaxLines(2);
+                tl.setPadding(0, dp(8), 0, dp(4));
+                t.addView(tl, matchWrap());
+                TextView sub = label(displayValue(pb.subtitle), 13, MUTED, false);
                 sub.setMaxLines(3);
-                card.addView(sub, matchWrap());
-                LinearLayout.LayoutParams cl = lp(dp(158), -2, 0);
-                cl.rightMargin = dp(10);
-                pr.addView(card, cl);
-                idx++;
-            }
-            hs.addView(pr);
-            parent.addView(hs, matchWrap());
-        }
-        parent.addView(sectionTitle("Мой номер", ""), sectionMargin());
-        LinearLayout bento = row();
-        LinearLayout tariff = column();
-        tariff.setPadding(dp(18), dp(18), dp(18), dp(16));
-        tariff.setBackground(gradient(BLUE_DARK, BLUE, 26));
-        tariff.addView(circleIcon("▣", BLUE_DARK, YELLOW, 40), lp(dp(40), dp(40), 0));
-        TextView tl = label("Тариф", 12, Color.rgb(170, 200, 250), false);
-        tl.setPadding(0, dp(14), 0, dp(2));
-        tariff.addView(tl, matchWrap());
-        TextView tn = label(displayValue(d.tariffName), 20, -1, true);
-        tn.setMaxLines(3);
-        tariff.addView(tn, matchWrap());
-        tariff.addView(new View(this), lp(1, 0, 1.0f));
-        tariff.addView(label("Все услуги  ›", 13, YELLOW, true), matchWrap());
-        tariff.setOnClickListener(tabClick(1, 0));
-        bento.addView(tariff, lp(0, dp(190), 1.0f));
-        LinearLayout right = column();
-        List<ServiceItem> svc = this.services;
-        right.addView(miniTile("Исходящие", displayValue(d.outgoingSummary), "◷", tabClick(3, 1)), lp(-1, 0, 1.0f));
-        LinearLayout.LayoutParams rt = lp(-1, 0, 1.0f);
-        rt.topMargin = dp(10);
-        right.addView(miniTile("Услуги", (svc == null ? 0 : svc.size()) + " шт.", "☷", tabClick(1, 0)), rt);
-        LinearLayout.LayoutParams rl = lp(0, dp(190), 1.0f);
-        rl.leftMargin = dp(10);
-        bento.addView(right, rl);
-        parent.addView(bento, matchWrap());
-        LinearLayout phone = row();
-        phone.setGravity(16);
-        phone.setPadding(dp(16), dp(14), dp(16), dp(14));
-        phone.setBackground(rounded(-1, 26, BORDER, 1));
-        phone.addView(circleIcon("☎", -1, GREEN, 46), lp(dp(46), dp(46), 0));
-        LinearLayout pcol = column();
-        pcol.setPadding(dp(12), 0, 0, 0);
-        pcol.addView(label("Телефон Telecom+", 16, BLUE_DARK, true), matchWrap());
-        pcol.addView(label(telephonyStatusTitle(this.telephonySnapshot), 12, MUTED, false), matchWrap());
-        phone.addView(pcol, lp(0, -2, 1.0f));
-        phone.addView(chip("Набрать", GREEN, Color.rgb(226, 246, 235)), wrap());
-        phone.setOnClickListener(tabClick(2, 0));
-        parent.addView(phone, cardMargin());
-        FundsFlowSnapshot ff = this.fundsFlow;
-        if (ff != null && !ff.transactions.isEmpty()) {
-            parent.addView(sectionTitle("Последние операции", "Из истории средств"), sectionMargin());
-            LinearLayout card = card();
-            card.setPadding(dp(16), dp(4), dp(16), dp(4));
-            int n = 0;
-            for (FundsTransaction tx : ff.transactions) {
-                if (n >= 4) {
-                    break;
+                t.addView(sub, matchWrap());
+                t.addView(new View(this), lp(1, dp(8), 0));
+                LinearLayout track = row();
+                track.setBackground(rounded(Color.rgb(228, 237, 249), 4, 0, 0));
+                View f = new View(this);
+                f.setBackground(rounded(YELLOW, 4, 0, 0));
+                int w = Math.max(4, Math.min(100, pb.progressPercent));
+                track.addView(f, new LinearLayout.LayoutParams(0, dp(6), (float) w));
+                track.addView(new View(this), new LinearLayout.LayoutParams(0, dp(6), (float) (100 - w)));
+                t.addView(track, lp(-1, dp(6), 0));
+                LinearLayout.LayoutParams sp2 = lp(0, -1, 1.0f);
+                if (i > 0) {
+                    sp2.leftMargin = dp(9);
                 }
-                if (n > 0) {
-                    card.addView(profileDivider(), matchWrap());
-                }
-                card.addView(txRow(tx), matchWrap());
-                n++;
+                st.addView(t, sp2);
             }
-            card.setOnClickListener(tabClick(3, 0));
-            parent.addView(card, matchWrap());
+            LinearLayout.LayoutParams sm = matchWrap();
+            sm.topMargin = dp(10);
+            parent.addView(st, sm);
         }
+        LinearLayout qa = row();
+        String[] qn = {"Пополнить", "Услуги", "Детализация", "Поддержка"};
+        String[] qg = {"₴", "☷", "▣", "?"};
+        for (int i = 0; i < 4; i++) {
+            LinearLayout q = column();
+            q.setGravity(1);
+            q.setPadding(dp(4), dp(14), dp(4), dp(12));
+            q.setBackground(rounded(-1, 18, BORDER, 1));
+            q.addView(circleIcon(qg[i], BLUE, SOFT_BLUE, 38), lp(dp(38), dp(38), 0));
+            TextView ql = label(qn[i], 11, TEXT, true);
+            ql.setGravity(17);
+            ql.setSingleLine(true);
+            ql.setPadding(0, dp(8), 0, 0);
+            q.addView(ql, matchWrap());
+            if (i == 0) {
+                q.setOnClickListener(new defpackage.d(this, 2));
+            } else if (i == 1) {
+                q.setOnClickListener(tabClick(1, 0));
+            } else if (i == 2) {
+                q.setOnClickListener(tabClick(3, 1));
+            } else {
+                q.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        try {
+                            MainActivity.this.startActivity(new Intent("android.intent.action.VIEW", Uri.parse("https://intertelecom.ua")));
+                        } catch (Exception e) {
+                        }
+                    }
+                });
+            }
+            LinearLayout.LayoutParams ql2 = lp(0, -2, 1.0f);
+            if (i > 0) {
+                ql2.leftMargin = dp(8);
+            }
+            qa.addView(q, ql2);
+        }
+        LinearLayout.LayoutParams qm = matchWrap();
+        qm.topMargin = dp(10);
+        parent.addView(qa, qm);
+        FrameLayout promo = new FrameLayout(this);
+        promo.setBackground(gradient(Color.rgb(221, 236, 255), Color.rgb(176, 208, 252), 20));
+        View ph = new View(this);
+        ph.setBackground(rounded(YELLOW, 12, BLUE_DARK, 4));
+        ph.setRotation(-14);
+        FrameLayout.LayoutParams php = new FrameLayout.LayoutParams(dp(58), dp(94));
+        php.gravity = 19;
+        php.leftMargin = dp(18);
+        promo.addView(ph, php);
+        LinearLayout pt = column();
+        pt.setPadding(dp(100), dp(18), dp(44), dp(18));
+        pt.addView(label("Управляйте связью проще", 17, BLUE_DARK, true), matchWrap());
+        TextView ps = label("Меняйте тариф, подключайте услуги и контролируйте расходы.", 12, TEXT, false);
+        ps.setPadding(0, dp(4), 0, 0);
+        pt.addView(ps, matchWrap());
+        promo.addView(pt, new FrameLayout.LayoutParams(-1, -2));
+        TextView pc = label("›", 28, BLUE, false);
+        FrameLayout.LayoutParams pcp = new FrameLayout.LayoutParams(-2, -2);
+        pcp.gravity = 21;
+        pcp.rightMargin = dp(16);
+        promo.addView(pc, pcp);
+        promo.setOnClickListener(tabClick(1, 0));
+        LinearLayout.LayoutParams pm = matchWrap();
+        pm.topMargin = dp(12);
+        parent.addView(promo, pm);
+        LinearLayout h2 = row();
+        h2.setGravity(16);
+        h2.setPadding(dp(2), dp(18), dp(2), dp(10));
+        h2.addView(label("Полезно", 17, TEXT, true), lp(0, -2, 1.0f));
+        TextView all = label("Весь кабинет", 12, BLUE, true);
+        all.setOnClickListener(tabClick(4, 0));
+        h2.addView(all, wrap());
+        parent.addView(h2, matchWrap());
+        LinearLayout us = row();
+        String[] un = {"Платежи", "Контакты", "Журнал"};
+        String[] ug = {"₴", "☺", "◷"};
+        final int[] ut = {3, 5, 8};
+        for (int i = 0; i < 3; i++) {
+            LinearLayout u = row();
+            u.setGravity(16);
+            u.setPadding(dp(12), dp(16), dp(10), dp(16));
+            u.setBackground(rounded(-1, 18, BORDER, 1));
+            u.addView(circleIcon(ug[i], BLUE, SOFT_BLUE, 28), lp(dp(28), dp(28), 0));
+            TextView ul = label(un[i], 13, TEXT, true);
+            ul.setPadding(dp(8), 0, 0, 0);
+            ul.setSingleLine(true);
+            u.addView(ul, wrap());
+            u.setOnClickListener(tabClick(ut[i], 0));
+            LinearLayout.LayoutParams ulp = lp(0, -2, 1.0f);
+            if (i > 0) {
+                ulp.leftMargin = dp(8);
+            }
+            us.addView(u, ulp);
+        }
+        parent.addView(us, matchWrap());
     }
 
     private void renderPhone(LinearLayout linearLayout) {
@@ -3181,7 +3246,7 @@ public final class MainActivity extends Activity {
     }
 
     private void renderServices(LinearLayout parent) {
-        parent.addView(pageHeader("Услуги", "Подключения вашего номера"), matchWrap());
+        parent.addView(subHeader("Услуги", 4), matchWrap());
         final List<ServiceItem> all = this.services == null ? new ArrayList<ServiceItem>() : this.services;
         final List<ServiceItem> connected = new ArrayList<>();
         final List<ServiceItem> available = new ArrayList<>();
@@ -3646,12 +3711,6 @@ public final class MainActivity extends Activity {
     }
 
     private void renderContacts(LinearLayout linearLayout) {
-        LinearLayout head = column();
-        head.setPadding(dp(20), dp(18), dp(20), dp(18));
-        head.setBackground(gradient(BLUE, CYAN, 24));
-        head.addView(label("Телефонная книга", 22, -1, true), matchWrap());
-        head.addView(label("Контакты хранятся на устройстве в зашифрованном виде", 13, Color.rgb(222, 255, 244), false), matchWrap());
-        linearLayout.addView(head, matchWrap());
         LinearLayout actions = row();
         Button add = primary("＋ Контакт");
         add.setOnClickListener(new View.OnClickListener() {
@@ -3805,13 +3864,9 @@ public final class MainActivity extends Activity {
     }
 
     private void renderChats(LinearLayout linearLayout) {
-        LinearLayout head = column();
-        head.setPadding(dp(20), dp(18), dp(20), dp(18));
-        head.setBackground(gradient(PURPLE, BLUE, 24));
-        head.addView(label("Сообщения", 22, -1, true), matchWrap());
-        head.addView(label("Чаты и SMS через вашу телефонию", 13, Color.rgb(226, 224, 255), false), matchWrap());
-        linearLayout.addView(head, matchWrap());
         Button add = primary("＋ Новое сообщение");
+        add.setBackground(rounded(YELLOW, 26, 0, 0));
+        add.setTextColor(BLUE_DARK);
         add.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -4753,11 +4808,17 @@ public final class MainActivity extends Activity {
         if (inCall) {
             column2.setPadding(0, 0, 0, 0);
         } else {
-            column2.setPadding(dp(16), dp(10), dp(16), dp(116));
+            column2.setPadding(dp(16), dp(8), dp(16), dp(96));
         }
         int i = this.selectedTab;
-        if ((i == 2 && !inCall) || i == 5 || i == 6) {
+        if ((i == 2 && !inCall) || i == 5 || i == 8) {
             commsTabs(column2);
+        }
+        if (i == 6) {
+            LinearLayout ch = row();
+            ch.setPadding(dp(2), dp(4), dp(2), dp(12));
+            ch.addView(label("Сообщения", 26, TEXT, true), lp(0, -2, 1.0f));
+            column2.addView(ch, matchWrap());
         }
         if (i == 0) {
             renderHome(column2);
@@ -4783,17 +4844,21 @@ public final class MainActivity extends Activity {
             renderContacts(column2);
         } else if (i == 6) {
             renderChats(column2);
+        } else if (i == 7) {
+            renderTariff(column2);
+        } else if (i == 8) {
+            renderJournal(column2);
+        } else if (i == 9) {
+            renderProfileAll(column2);
         } else {
-            renderProfile(column2);
-            renderNumbers(column2);
-            renderPhoneSettings(column2);
+            renderCabinet(column2);
         }
         scrollView.addView(column2);
         frameLayout.addView(scrollView, new FrameLayout.LayoutParams(-1, -1));
         if (!inCall) {
             FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-1, -2);
             np.gravity = 80;
-            np.setMargins(dp(14), 0, dp(14), dp(14));
+            np.setMargins(0, 0, 0, 0);
             frameLayout.addView(floatNav(), np);
         }
         this.root.addView(column, new FrameLayout.LayoutParams(-1, -1));
@@ -5446,20 +5511,25 @@ public final class MainActivity extends Activity {
     }
 
     private void commsTabs(LinearLayout parent) {
-        parent.addView(pageHeader("Связь", telephonyStatusTitle(this.telephonySnapshot)), matchWrap());
+        LinearLayout hd = row();
+        hd.setGravity(16);
+        hd.setPadding(dp(2), dp(4), dp(2), dp(12));
+        LinearLayout hc = column();
+        hc.addView(label("Телефон", 26, TEXT, true), matchWrap());
+        hc.addView(label(telephonyStatusTitle(this.telephonySnapshot), 12, MUTED, false), matchWrap());
+        hd.addView(hc, lp(0, -2, 1.0f));
+        parent.addView(hd, matchWrap());
         LinearLayout tabs = row();
         tabs.setPadding(dp(4), dp(4), dp(4), dp(4));
-        tabs.setBackground(rounded(-1, 24, BORDER, 1));
-        int unread = phoneData().unreadTotal();
-        String[] names = {"Клавиатура", "Контакты", unread > 0 ? "Чаты " + unread : "Чаты"};
-        final int[] ids = {2, 5, 6};
+        tabs.setBackground(rounded(Color.rgb(228, 237, 249), 20, 0, 0));
+        String[] names = {"Набор", "Журнал", "Контакты"};
+        final int[] ids = {2, 8, 5};
         for (int i = 0; i < 3; i++) {
-            final int id = ids[i];
-            LinearLayout.LayoutParams sl = lp(0, dp(42), 1.0f);
-            if (i > 0) {
-                sl.leftMargin = dp(4);
-            }
-            tabs.addView(segment(names[i], this.selectedTab == id, tabClick(id, 0)), sl);
+            boolean act = this.selectedTab == ids[i];
+            TextView sg = (TextView) segment(names[i], act, tabClick(ids[i], 0));
+            sg.setBackground(act ? rounded(BLUE, 16, 0, 0) : null);
+            sg.setTextColor(act ? -1 : TEXT);
+            tabs.addView(sg, lp(0, dp(38), 1.0f));
         }
         LinearLayout.LayoutParams tp = matchWrap();
         tp.bottomMargin = dp(12);
@@ -5469,38 +5539,40 @@ public final class MainActivity extends Activity {
     private View floatNav() {
         LinearLayout row = row();
         row.setGravity(16);
-        row.setBackground(rounded(BLUE_DARK, 34, 0, 0));
-        row.setElevation(dp(14));
-        row.setPadding(dp(8), dp(8), dp(8), dp(8));
-        String[] names = {"Главная", "Платежи", "Услуги", "Связь", "Профиль"};
-        int[] icons = {R.drawable.ic_home, R.drawable.ic_wallet, R.drawable.ic_services, R.drawable.ic_phone, R.drawable.ic_user};
-        int[] tabs = {0, 3, 1, 2, 4};
+        row.setBackgroundColor(-1);
+        row.setElevation(dp(10));
+        row.setPadding(dp(4), dp(8), dp(4), dp(8));
+        String[] names = {"Главная", "Телефон", "Сообщения", "Кабинет"};
+        int[] icons = {R.drawable.ic_home, R.drawable.ic_phone, R.drawable.ic_chat, R.drawable.ic_user};
+        int[] tabs = {0, 2, 6, 4};
         int unread = phoneData().unreadTotal();
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 4; i++) {
             int tab = tabs[i];
-            boolean active = tab == 2 ? (this.selectedTab == 2 || this.selectedTab == 5 || this.selectedTab == 6) : this.selectedTab == tab;
-            LinearLayout item = row();
-            item.setGravity(17);
-            if (active) {
-                item.setBackground(rounded(YELLOW, 26, 0, 0));
-                item.setPadding(dp(4), 0, dp(16), 0);
-            }
+            int st = this.selectedTab;
+            boolean active = tab == 0 ? st == 0 : tab == 2 ? (st == 2 || st == 5 || st == 8) : tab == 6 ? st == 6 : (st == 4 || st == 1 || st == 3 || st == 7 || st == 9);
+            LinearLayout item = column();
+            item.setGravity(1);
             FrameLayout iw = new FrameLayout(this);
-            iw.addView(new Ico.PlainView(this, Ico.get(this, icons[i], active ? BLUE_DARK : Color.rgb(150, 178, 232)), 0.58f), new FrameLayout.LayoutParams(dp(46), dp(46)));
-            if (tab == 2 && unread > 0 && !active) {
-                View dot = new View(this);
-                dot.setBackground(rounded(RED, 5, BLUE_DARK, 2));
-                FrameLayout.LayoutParams dp1 = new FrameLayout.LayoutParams(dp(10), dp(10));
-                dp1.leftMargin = dp(28);
-                dp1.topMargin = dp(8);
-                iw.addView(dot, dp1);
-            }
-            item.addView(iw, lp(dp(46), dp(46), 0));
             if (active) {
-                item.addView(label(names[i], 13, BLUE_DARK, true), wrap());
+                iw.setBackground(rounded(Color.rgb(228, 239, 255), 14, 0, 0));
             }
-            item.setOnClickListener(tabClick(tab, tab == 3 ? this.historyMode : 0));
-            row.addView(item, active ? lp(-2, dp(46), 0) : lp(0, dp(46), 1.0f));
+            View ic = new Ico.PlainView(this, Ico.get(this, icons[i], active ? Color.rgb(0, 79, 215) : Color.rgb(52, 73, 109)), 0.56f);
+            iw.addView(ic, new FrameLayout.LayoutParams(dp(54), dp(34), 17));
+            if (tab == 6 && unread > 0) {
+                TextView b = label(String.valueOf(unread), 10, -1, true);
+                b.setGravity(17);
+                b.setBackground(rounded(RED, 8, 0, 0));
+                FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(18), dp(16));
+                bp.leftMargin = dp(32);
+                iw.addView(b, bp);
+            }
+            item.addView(iw, lp(dp(54), dp(34), 0));
+            TextView nl = label(names[i], 11, active ? Color.rgb(0, 79, 215) : Color.rgb(52, 73, 109), active);
+            nl.setGravity(17);
+            nl.setPadding(0, dp(3), 0, 0);
+            item.addView(nl, matchWrap());
+            item.setOnClickListener(tabClick(tab, 0));
+            row.addView(item, lp(0, -2, 1.0f));
         }
         return row;
     }
@@ -5569,7 +5641,16 @@ public final class MainActivity extends Activity {
         col.addView(t, matchWrap());
         col.addView(label("Абонплата: " + displayValue(it.fee), 12, MUTED, false), matchWrap());
         row.addView(col, lp(0, -2, 1.0f));
-        row.addView(chip(on ? "Вкл" : "Выкл", on ? GREEN : MUTED, on ? Color.rgb(226, 246, 235) : Color.rgb(238, 242, 248)), wrap());
+        FrameLayout tg = new FrameLayout(this);
+        tg.setBackground(rounded(on ? YELLOW : Color.rgb(214, 224, 240), 14, 0, 0));
+        View kn = new View(this);
+        kn.setBackground(rounded(-1, 11, 0, 0));
+        FrameLayout.LayoutParams knp = new FrameLayout.LayoutParams(dp(22), dp(22));
+        knp.gravity = on ? 21 : 19;
+        knp.leftMargin = dp(3);
+        knp.rightMargin = dp(3);
+        tg.addView(kn, knp);
+        row.addView(tg, lp(dp(48), dp(28), 0));
         row.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -5675,4 +5756,287 @@ public final class MainActivity extends Activity {
             parent.addView(info(f.transactions.isEmpty() ? "За выбранный период портал не вернул операций." : "В выбранной категории операций нет."), cardMargin());
         }
     }
+
+    private View subHeader(String title, final int backTab) {
+        LinearLayout row = row();
+        row.setGravity(16);
+        row.setPadding(0, dp(4), 0, dp(12));
+        TextView back = label("‹", 34, TEXT, false);
+        back.setPadding(dp(4), 0, dp(14), dp(4));
+        back.setOnClickListener(tabClick(backTab, 0));
+        row.addView(back, wrap());
+        row.addView(label(title, 21, TEXT, true), lp(0, -2, 1.0f));
+        row.addView(roundRefresh(), lp(dp(44), dp(44), 0));
+        return row;
+    }
+
+    private View menuRow(String glyph, String title, String sub, View.OnClickListener l) {
+        LinearLayout r = row();
+        r.setGravity(16);
+        r.setPadding(0, dp(12), 0, dp(12));
+        r.addView(circleIcon(glyph, Color.rgb(228, 169, 0), Color.rgb(255, 245, 191), 40), lp(dp(40), dp(40), 0));
+        LinearLayout c = column();
+        c.setPadding(dp(12), 0, dp(8), 0);
+        c.addView(label(title, 15, TEXT, true), matchWrap());
+        if (sub != null) {
+            c.addView(label(sub, 12, MUTED, false), matchWrap());
+        }
+        r.addView(c, lp(0, -2, 1.0f));
+        r.addView(label("›", 24, MUTED, false), wrap());
+        r.setOnClickListener(l);
+        return r;
+    }
+
+    private void renderCabinet(LinearLayout parent) {
+        DashboardSnapshot d = this.dashboard;
+        LinearLayout hd = row();
+        hd.setGravity(16);
+        hd.setPadding(dp(2), dp(4), dp(2), dp(12));
+        hd.addView(label("Кабинет", 26, TEXT, true), lp(0, -2, 1.0f));
+        hd.addView(roundRefresh(), lp(dp(44), dp(44), 0));
+        parent.addView(hd, matchWrap());
+        LinearLayout me = row();
+        me.setGravity(16);
+        me.setPadding(dp(14), dp(14), dp(14), dp(14));
+        me.setBackground(rounded(-1, 20, BORDER, 1));
+        me.addView(circleIcon("☺", Color.rgb(228, 169, 0), Color.rgb(255, 245, 191), 46), lp(dp(46), dp(46), 0));
+        LinearLayout mc = column();
+        mc.setPadding(dp(12), 0, 0, 0);
+        mc.addView(label("Мой номер", 12, MUTED, false), matchWrap());
+        mc.addView(label(d == null ? "—" : formatInternationalPhone(d.phoneNumber), 17, TEXT, true), matchWrap());
+        me.addView(mc, lp(0, -2, 1.0f));
+        me.addView(label("›", 26, TEXT, false), wrap());
+        me.setOnClickListener(tabClick(9, 0));
+        parent.addView(me, matchWrap());
+        LinearLayout c1 = card();
+        c1.setPadding(dp(14), dp(2), dp(14), dp(2));
+        c1.addView(menuRow("₴", "Платежи и пополнения", "История платежей и движение средств", tabClick(3, 0)), matchWrap());
+        c1.addView(profileDivider(), matchWrap());
+        c1.addView(menuRow("▣", "Расходы и детализация", "Звонки, интернет, SMS", tabClick(3, 1)), matchWrap());
+        c1.addView(profileDivider(), matchWrap());
+        c1.addView(menuRow("★", "Мой тариф", "Пакет услуг и условия", tabClick(7, 0)), matchWrap());
+        c1.addView(profileDivider(), matchWrap());
+        c1.addView(menuRow("☷", "Услуги", "Подключение и управление", tabClick(1, 0)), matchWrap());
+        c1.addView(profileDivider(), matchWrap());
+        c1.addView(menuRow("☺", "Профиль", "Личные данные, номера, телефония", tabClick(9, 0)), matchWrap());
+        LinearLayout.LayoutParams m1 = matchWrap();
+        m1.topMargin = dp(14);
+        parent.addView(c1, m1);
+        TextView dh = label("Дополнительно", 17, TEXT, true);
+        dh.setPadding(dp(2), dp(18), 0, dp(10));
+        parent.addView(dh, matchWrap());
+        LinearLayout c2 = card();
+        c2.setPadding(dp(14), dp(2), dp(14), dp(2));
+        c2.addView(menuRow("☎", "Телефон Telecom+", telephonyStatusTitle(this.telephonySnapshot), tabClick(2, 0)), matchWrap());
+        c2.addView(profileDivider(), matchWrap());
+        c2.addView(menuRow("?", "Поддержка", "Сайт оператора", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                try {
+                    MainActivity.this.startActivity(new Intent("android.intent.action.VIEW", Uri.parse("https://intertelecom.ua")));
+                } catch (Exception e) {
+                }
+            }
+        }), matchWrap());
+        parent.addView(c2, matchWrap());
+    }
+
+    private void renderTariff(LinearLayout parent) {
+        DashboardSnapshot d = this.dashboard;
+        parent.addView(subHeader("Мой тариф", 4), matchWrap());
+        if (d == null) {
+            return;
+        }
+        FrameLayout hero = new FrameLayout(this);
+        hero.setBackground(gradient(Color.rgb(221, 236, 255), Color.rgb(246, 250, 255), 22));
+        View sw = new View(this);
+        sw.setBackground(rounded(YELLOW, 40, 0, 0));
+        FrameLayout.LayoutParams swp = new FrameLayout.LayoutParams(dp(150), dp(80));
+        swp.gravity = 85;
+        swp.rightMargin = dp(-40);
+        swp.bottomMargin = dp(-40);
+        hero.addView(sw, swp);
+        LinearLayout hr = row();
+        hr.setGravity(16);
+        hr.setPadding(dp(16), dp(18), dp(16), dp(18));
+        hr.addView(circleIcon("★", Color.rgb(228, 169, 0), Color.rgb(255, 245, 191), 54), lp(dp(54), dp(54), 0));
+        LinearLayout hc = column();
+        hc.setPadding(dp(14), 0, 0, 0);
+        hc.addView(label(displayValue(d.tariffName), 22, TEXT, true), matchWrap());
+        hc.addView(label(displayValue(d.status), 13, MUTED, false), matchWrap());
+        hr.addView(hc, lp(0, -2, 1.0f));
+        hero.addView(hr, new FrameLayout.LayoutParams(-1, -2));
+        parent.addView(hero, matchWrap());
+        TextView ph = label("Ваш пакет услуг", 17, TEXT, true);
+        ph.setPadding(dp(2), dp(18), 0, dp(10));
+        parent.addView(ph, matchWrap());
+        LinearLayout pk = card();
+        pk.setPadding(dp(16), dp(4), dp(16), dp(4));
+        if (d.packages.isEmpty()) {
+            pk.addView(label("Портал не вернул остатков пакетов", 14, MUTED, false), matchWrap());
+        }
+        int i = 0;
+        for (PackageBalance pb : d.packages) {
+            if (i > 0) {
+                pk.addView(profileDivider(), matchWrap());
+            }
+            LinearLayout r = column();
+            r.setPadding(0, dp(12), 0, dp(12));
+            LinearLayout rr = row();
+            rr.setGravity(16);
+            TextView t = label(pb.title, 15, TEXT, true);
+            rr.addView(t, lp(0, -2, 1.0f));
+            rr.addView(label(pb.progressPercent + "%", 13, BLUE, true), wrap());
+            r.addView(rr, matchWrap());
+            r.addView(label(displayValue(pb.subtitle), 12, MUTED, false), matchWrap());
+            LinearLayout track = row();
+            track.setBackground(rounded(Color.rgb(228, 237, 249), 4, 0, 0));
+            View f = new View(this);
+            f.setBackground(rounded(YELLOW, 4, 0, 0));
+            int w = Math.max(4, Math.min(100, pb.progressPercent));
+            track.addView(f, new LinearLayout.LayoutParams(0, dp(6), (float) w));
+            track.addView(new View(this), new LinearLayout.LayoutParams(0, dp(6), (float) (100 - w)));
+            LinearLayout.LayoutParams tl = lp(-1, dp(6), 0);
+            tl.topMargin = dp(8);
+            r.addView(track, tl);
+            pk.addView(r, matchWrap());
+            i++;
+        }
+        parent.addView(pk, matchWrap());
+        LinearLayout info = card();
+        info.setPadding(dp(16), dp(4), dp(16), dp(4));
+        info.addView(kv("Номер", formatInternationalPhone(d.phoneNumber)), matchWrap());
+        info.addView(profileDivider(), matchWrap());
+        info.addView(kv("Исходящие за период", displayValue(d.outgoingSummary)), matchWrap());
+        if (d.profile != null) {
+            info.addView(profileDivider(), matchWrap());
+            info.addView(kv("Действителен до", displayValue(d.profile.validUntil)), matchWrap());
+            info.addView(profileDivider(), matchWrap());
+            info.addView(kv("Подключён", displayValue(d.profile.connectionDate)), matchWrap());
+        }
+        TextView ih = label("Управление тарифом", 17, TEXT, true);
+        ih.setPadding(dp(2), dp(18), 0, dp(10));
+        parent.addView(ih, matchWrap());
+        parent.addView(info, matchWrap());
+        Button svc = primary("Услуги и подключения");
+        svc.setOnClickListener(tabClick(1, 0));
+        LinearLayout.LayoutParams sp = lp(-1, dp(52), 0);
+        sp.topMargin = dp(14);
+        parent.addView(svc, sp);
+    }
+
+    private View kv(String k, String v) {
+        LinearLayout r = row();
+        r.setGravity(16);
+        r.setPadding(0, dp(14), 0, dp(14));
+        r.addView(label(k, 14, MUTED, false), lp(0, -2, 1.0f));
+        TextView t = label(v, 14, TEXT, true);
+        t.setGravity(8388613);
+        r.addView(t, wrap());
+        return r;
+    }
+
+    private void renderProfileAll(LinearLayout parent) {
+        parent.addView(subHeader("Профиль", 4), matchWrap());
+        renderProfile(parent);
+        renderNumbers(parent);
+        renderPhoneSettings(parent);
+    }
+
+    private void renderJournal(LinearLayout parent) {
+        List<PhoneData.CallEntry> calls = phoneData().calls();
+        LinearLayout seg = row();
+        seg.setPadding(dp(4), dp(4), dp(4), dp(4));
+        seg.setBackground(rounded(Color.rgb(228, 237, 249), 20, 0, 0));
+        String[] names = {"Все", "Входящие", "Исходящие", "Пропущ."};
+        for (int i = 0; i < 4; i++) {
+            final int f = i;
+            View sg = segment(names[i], this.callFilter == i, new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.callFilter = f;
+                    MainActivity.this.showCabinet();
+                }
+            });
+            sg.setBackground(this.callFilter == i ? rounded(BLUE, 16, 0, 0) : null);
+            ((TextView) sg).setTextColor(this.callFilter == i ? -1 : TEXT);
+            seg.addView(sg, lp(0, dp(36), 1.0f));
+        }
+        LinearLayout.LayoutParams sgp = matchWrap();
+        sgp.bottomMargin = dp(8);
+        parent.addView(seg, sgp);
+        String last = "";
+        LinearLayout cur = null;
+        int shown = 0;
+        for (int idx = 0; idx < Math.min(calls.size(), 120); idx++) {
+            final PhoneData.CallEntry e = calls.get(idx);
+            if (this.callFilter == 1 && e.dir != PhoneData.CALL_IN) {
+                continue;
+            }
+            if (this.callFilter == 2 && e.dir != PhoneData.CALL_OUT) {
+                continue;
+            }
+            if (this.callFilter == 3 && e.dir != PhoneData.CALL_MISSED) {
+                continue;
+            }
+            Calendar c = Calendar.getInstance();
+            c.setTimeInMillis(e.time);
+            Calendar now = Calendar.getInstance();
+            String g;
+            if (c.get(Calendar.YEAR) == now.get(Calendar.YEAR) && c.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)) {
+                g = "Сегодня";
+            } else if (c.get(Calendar.YEAR) == now.get(Calendar.YEAR) && c.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR) - 1) {
+                g = "Вчера";
+            } else {
+                g = new java.text.SimpleDateFormat("d MMMM", new Locale("ru")).format(new Date(e.time));
+            }
+            if (cur == null || !g.equals(last)) {
+                TextView h = label(g, 12, MUTED, true);
+                h.setPadding(dp(4), dp(14), 0, dp(6));
+                parent.addView(h, matchWrap());
+                cur = card();
+                cur.setPadding(dp(14), dp(2), dp(14), dp(2));
+                parent.addView(cur, matchWrap());
+                last = g;
+            } else {
+                cur.addView(profileDivider(), matchWrap());
+            }
+            LinearLayout row = row();
+            row.setGravity(16);
+            row.setPadding(0, dp(12), 0, dp(12));
+            boolean miss = e.dir == PhoneData.CALL_MISSED;
+            String gl = e.dir == PhoneData.CALL_IN ? "↙" : e.dir == PhoneData.CALL_OUT ? "↗" : "✕";
+            int col = miss ? RED : GREEN;
+            row.addView(label(gl, 18, col, true), lp(dp(26), -2, 0));
+            LinearLayout tc = column();
+            String title = phoneData().title(e.number);
+            tc.addView(label(title, 15, miss ? RED : TEXT, true), matchWrap());
+            tc.addView(label(displayValue(e.number) + (e.duration > 0 ? " · " + formatDuration(e.duration) : ""), 12, MUTED, false), matchWrap());
+            row.addView(tc, lp(0, -2, 1.0f));
+            row.addView(label(timeLabel(e.time), 11, MUTED, false), wrap());
+            TextView call = new Ico.CircleView(this, Ico.get(this, R.drawable.ic_phone, BLUE));
+            LinearLayout.LayoutParams cl = lp(dp(36), dp(36), 0);
+            cl.leftMargin = dp(8);
+            call.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.dialNumber(e.number);
+                }
+            });
+            row.addView(call, cl);
+            row.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View view) {
+                    MainActivity.this.blockNumberDialog(e.number);
+                    return true;
+                }
+            });
+            cur.addView(row, matchWrap());
+            shown++;
+        }
+        if (shown == 0) {
+            parent.addView(info("Вызовов пока нет"), matchWrap());
+        }
+    }
+    private int callFilter;
 }
