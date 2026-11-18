@@ -3125,6 +3125,14 @@ public final class MainActivity extends Activity {
             }
             linearLayout.addView(card, cardMargin());
             linearLayout.addView(info("Телефонный пароль после активации хранится только в Android Keystore в зашифрованном виде."), cardMargin());
+            Button diag = secondary("Журнал телефонии (диагностика)");
+            diag.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.showTelephonyLog();
+                }
+            });
+            linearLayout.addView(diag, lp(-1, dp(48), 0));
             return;
         }
         if (telephonySnapshot.hasActiveCall()) {

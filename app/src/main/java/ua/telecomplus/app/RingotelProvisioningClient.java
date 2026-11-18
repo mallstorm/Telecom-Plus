@@ -36,6 +36,69 @@ final class RingotelProvisioningClient {
     }
 
     private JSONObject command(String str, JSONObject jSONObject) throws Exception {
+        String wsError;
+        try {
+            return commandWs(str, jSONObject);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (IllegalStateException e2) {
+            throw e2;
+        } catch (Exception e3) {
+            wsError = String.valueOf(e3.getMessage());
+            TelephonyLog.log("Provisioning WS: " + str + " не удался: " + wsError);
+        }
+        try {
+            return commandHttp(str, jSONObject);
+        } catch (IllegalStateException e4) {
+            throw new IllegalStateException(e4.getMessage() + " (WebSocket: " + wsError + ")");
+        }
+    }
+
+    private JSONObject commandWs(String str, JSONObject jSONObject) throws Exception {
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        final String[] resp = {null};
+        SipWebSocket ws = new SipWebSocket(HOST, 443, "json.api.smile-soft.com", "Ringotel", new SipWebSocket.Listener() {
+            @Override
+            public void onClosed(String reason) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onText(String text) {
+                if (resp[0] == null) {
+                    resp[0] = text;
+                }
+                latch.countDown();
+            }
+        });
+        try {
+            TelephonyLog.log("Provisioning WS: подключение, метод " + str);
+            ws.connect();
+            JSONObject msg = new JSONObject();
+            msg.put("method", str);
+            msg.put("params", jSONObject);
+            msg.put("id", 1);
+            ws.sendText(msg.toString());
+            if (!latch.await(25, java.util.concurrent.TimeUnit.SECONDS)) {
+                throw new java.io.IOException("сервер не ответил за 25 секунд");
+            }
+            if (resp[0] == null || resp[0].trim().isEmpty()) {
+                throw new java.io.IOException("соединение закрыто без ответа");
+            }
+            JSONObject root = new JSONObject(resp[0].trim());
+            TelephonyLog.log("Provisioning WS: ответ на " + str + ", поля " + root.keys().hasNext() + " " + (root.has("error") ? "error" : "result"));
+            JSONObject err = root.optJSONObject("error");
+            if (err != null) {
+                throw new IllegalStateException(serverMessage(err, "Ошибка сервера телефонии"));
+            }
+            JSONObject res = root.optJSONObject("result");
+            return res != null ? res : root;
+        } finally {
+            ws.close();
+        }
+    }
+
+    private JSONObject commandHttp(String str, JSONObject jSONObject) throws Exception {
         byte[] bArr;
         JSONObject jSONObject2 = new JSONObject();
         jSONObject2.put("method", str);
@@ -74,8 +137,9 @@ final class RingotelProvisioningClient {
                     }
                 }
                 String trim = new String(bArr, charset).trim();
+                TelephonyLog.log("Provisioning HTTP: " + str + " -> HTTP " + responseCode + ", " + bArr.length + " байт");
                 if (trim.isEmpty()) {
-                    throw new IllegalStateException("Сервер телефонии вернул пустой ответ");
+                    throw new IllegalStateException("Сервер телефонии вернул пустой ответ (HTTP " + responseCode + ")");
                 }
                 JSONObject jSONObject4 = new JSONObject(trim);
                 if (responseCode < 200 || responseCode >= 300) {
