@@ -211,10 +211,19 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             return;
         }
         probed = true;
+        TelephonyLog.log("probe: старт (сборка diag-5)");
         final String termid = this.provisioning.terminalId();
         new Thread(new Runnable() {
             @Override
             public void run() {
+                try {
+                    runProbe();
+                } catch (Throwable t) {
+                    TelephonyLog.log("probe: сбой " + t);
+                }
+            }
+
+            private void runProbe() {
                 String[] users = {termid, profile.optString("userid", ""), profile.optString("registration_identity", ""), android.text.TextUtils.join("", new String[]{})};
                 try {
                     JSONObject info = profile.optJSONObject("info");
@@ -294,7 +303,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             }
             probeAuth(jSONObject, termpass);
             stopAgent();
-            TelephonyLog.log("connect: server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
+            TelephonyLog.log("connect (diag-5): server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
             try {
                 JSONObject dump = new JSONObject(jSONObject.toString());
                 if (dump.has("termpass")) {
