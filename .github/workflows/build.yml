@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -24,3 +26,11 @@ jobs:
         with:
           name: telecom-plus-debug
           path: app/build/outputs/apk/debug/*.apk
+      - name: Publish APK to release
+        if: github.event_name == 'push' && github.ref_name == 'claude/restore-telecom-plus'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/*.apk Telecom-Plus.apk
+          gh release delete latest-apk --yes --cleanup-tag || true
+          gh release create latest-apk Telecom-Plus.apk --title "Telecom+ (последняя сборка)" --notes "Debug APK, коммит ${GITHUB_SHA::7}" --target "$GITHUB_SHA" --prerelease
