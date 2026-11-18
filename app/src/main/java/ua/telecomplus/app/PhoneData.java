@@ -56,6 +56,7 @@ final class PhoneData {
 
     private static final String K_CONTACTS = "pd_contacts_v1";
     private static final String K_CALLS = "pd_calls_v1";
+    private static final String K_BLOCKED = "pd_blocked_v1";
     private static final String K_THREADS = "pd_threads_v1";
     private static PhoneData instance;
 
@@ -487,12 +488,68 @@ final class PhoneData {
         }
     }
 
+    synchronized List<String> blocked() {
+        List<String> out = new java.util.ArrayList<>();
+        try {
+            String raw = this.vault.get(K_BLOCKED);
+            if (raw != null && !raw.isEmpty()) {
+                org.json.JSONArray a = new org.json.JSONArray(raw);
+                for (int i = 0; i < a.length(); i++) {
+                    out.add(a.optString(i));
+                }
+            }
+        } catch (Exception unused) {
+        }
+        return out;
+    }
+
+    synchronized boolean isBlocked(String str) {
+        if (str == null || str.isEmpty()) {
+            return false;
+        }
+        String k = key(str);
+        for (String b : blocked()) {
+            if (key(b).equals(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    synchronized void setBlocked(String str, boolean z) {
+        List<String> list = blocked();
+        String k = key(str);
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (key(list.get(i)).equals(k)) {
+                list.remove(i);
+            }
+        }
+        if (z) {
+            list.add(str.trim());
+        }
+        org.json.JSONArray a = new org.json.JSONArray();
+        for (String b : list) {
+            a.put(b);
+        }
+        this.vault.put(K_BLOCKED, a.toString());
+        changed();
+    }
+
+    synchronized void clearForReload() {
+        this.calls.clear();
+        this.threads.clear();
+        saveCalls();
+        saveThreads();
+        changed();
+    }
+
     synchronized void clearAll() {
         this.contacts.clear();
         this.calls.clear();
         this.threads.clear();
         this.vault.remove(K_CONTACTS);
         this.vault.remove(K_CALLS);
+        this.vault.remove(K_BLOCKED);
         this.vault.remove(K_THREADS);
         changed();
     }

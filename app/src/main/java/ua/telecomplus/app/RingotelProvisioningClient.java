@@ -195,4 +195,18 @@ final class RingotelProvisioningClient {
         baseParams.put(registrationKey(normalizeRegistrationIdentity), normalizeRegistrationIdentity);
         return command("registrationRequest", baseParams);
     }
+
+    public JSONObject requestOAuth(String str) throws Exception {
+        JSONObject baseParams = baseParams();
+        baseParams.put("service", str);
+        return command("registrationRequest", baseParams);
+    }
+
+    public JSONObject completeOAuth() throws Exception {
+        JSONObject jSONObject = new JSONObject();
+        jSONObject.put("oauth", true);
+        jSONObject.put("termid", terminalId());
+        jSONObject.put("country", Locale.getDefault().getCountry());
+        return command("registrationComplete", jSONObject);
+    }
 }

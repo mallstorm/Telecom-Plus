@@ -10,8 +10,8 @@ android {
         applicationId = "ua.telecomplus.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 40
-        versionName = "0.4.0-phone"
+        versionCode = 50
+        versionName = "0.5.0-phone"
     }
 
     buildFeatures {

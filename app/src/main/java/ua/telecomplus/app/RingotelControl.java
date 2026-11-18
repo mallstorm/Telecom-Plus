@@ -49,6 +49,10 @@ final class RingotelControl implements SipWebSocket.Listener {
     private volatile boolean online;
     private volatile String myUserId = "";
     private volatile String myName = "";
+    private volatile JSONObject profileJson = new JSONObject();
+    private volatile JSONArray trunksJson = new JSONArray();
+    private volatile JSONArray providersJson = new JSONArray();
+    private final Map<String, String> userNames = new HashMap<>();
     private long nextId = System.currentTimeMillis() & 0x7fffffffL;
     private Thread worker;
 
@@ -227,16 +231,32 @@ final class RingotelControl implements SipWebSocket.Listener {
     }
 
     private void sync() {
+        boolean loaded = false;
         try {
-            Object profile = call("getProfile", new JSONObject(), 15000);
-            TelephonyLog.log("Control getProfile: " + clip(profile));
-            if (profile instanceof JSONObject) {
-                JSONObject p = (JSONObject) profile;
-                this.myUserId = p.optString("userid", p.optString("id", ""));
-                this.myName = p.optString("name", p.optString("displayname", ""));
+            JSONObject lp = new JSONObject();
+            lp.put("since", 0);
+            lp.put("termid", this.termId);
+            lp.put("devinfo", "Android " + Build.VERSION.RELEASE + " " + Build.MANUFACTURER + " " + Build.MODEL + " (Telecom+)");
+            lp.put("signin", true);
+            Object objects = call("loadObjects", lp, 45000);
+            TelephonyLog.log("Control loadObjects: " + clip(objects));
+            if (objects instanceof JSONObject) {
+                applyObjects((JSONObject) objects);
+                loaded = true;
             }
         } catch (Exception e) {
-            TelephonyLog.log("Control getProfile: " + e);
+            TelephonyLog.log("Control loadObjects: " + e);
+        }
+        if (!loaded) {
+            try {
+                Object profile = call("getProfile", new JSONObject(), 15000);
+                TelephonyLog.log("Control getProfile: " + clip(profile));
+                if (profile instanceof JSONObject) {
+                    applyProfile((JSONObject) profile);
+                }
+            } catch (Exception e) {
+                TelephonyLog.log("Control getProfile: " + e);
+            }
         }
         try {
             JSONObject params = new JSONObject();
@@ -251,6 +271,182 @@ final class RingotelControl implements SipWebSocket.Listener {
         } catch (Exception e) {
             TelephonyLog.log("Control getEvents: " + e);
         }
+        loadHistories();
+        try {
+            refreshTrunks();
+        } catch (Exception unused) {
+        }
+    }
+
+    private void applyProfile(JSONObject p) {
+        this.profileJson = p;
+        this.myUserId = p.optString("userid", p.optString("id", this.myUserId));
+        this.myName = p.optString("name", p.optString("displayname", this.myName));
+    }
+
+    private void applyObjects(JSONObject o) {
+        JSONObject p = o.optJSONObject("profile");
+        if (p != null) {
+            applyProfile(p);
+        }
+        JSONArray t = o.optJSONArray("trunks");
+        if (t != null) {
+            this.trunksJson = t;
+        }
+        JSONArray pr = o.optJSONArray("providers");
+        if (pr != null) {
+            this.providersJson = pr;
+        }
+        processEvents(o);
+    }
+
+    private void loadHistories() {
+        java.util.List<String> ids = new java.util.ArrayList<>(this.sessionPeers.keySet());
+        int n = 0;
+        for (String id : ids) {
+            if (this.stopped || n++ >= 40) {
+                return;
+            }
+            try {
+                JSONObject params = new JSONObject();
+                params.put("sessionid", id);
+                params.put("since", 0);
+                params.put("count", 100);
+                Object res = call("getMessages", params, 15000);
+                JSONArray arr = res instanceof JSONArray ? (JSONArray) res : (res instanceof JSONObject ? ((JSONObject) res).optJSONArray("messages") : null);
+                if (arr == null) {
+                    continue;
+                }
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject m = arr.optJSONObject(i);
+                    if (m != null) {
+                        if (!m.has("sessionid")) {
+                            m.put("sessionid", id);
+                        }
+                        processMessage(m, false);
+                    }
+                }
+            } catch (Exception e) {
+                TelephonyLog.log("Control getMessages " + id + ": " + e);
+            }
+        }
+    }
+
+    // ---------- аккаунт, номера, баланс ----------
+
+    JSONObject profile() {
+        return this.profileJson;
+    }
+
+    String userId() {
+        return this.myUserId;
+    }
+
+    JSONArray trunks() {
+        return this.trunksJson;
+    }
+
+    JSONArray providers() {
+        return this.providersJson;
+    }
+
+    /** Идентификатор провайдера Интертелеком в списке провайдеров аккаунта. */
+    String providerId() {
+        JSONArray a = this.providersJson;
+        String fallback = null;
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject p = a.optJSONObject(i);
+            if (p == null) {
+                continue;
+            }
+            String id = p.optString("id", p.optString("provider", ""));
+            String name = p.optString("name", "").toLowerCase(java.util.Locale.ROOT);
+            if (name.contains("intertelecom") || name.contains("интертелеком") || name.contains("інтертелеком")) {
+                return id;
+            }
+            if (fallback == null && !id.isEmpty() && !id.equals("-1")) {
+                fallback = id;
+            }
+        }
+        return fallback;
+    }
+
+    private static JSONObject asObject(Object o) {
+        return o instanceof JSONObject ? (JSONObject) o : new JSONObject();
+    }
+
+    JSONArray refreshTrunks() throws Exception {
+        Object res = call("getSIPAccounts", new JSONObject(), 20000);
+        TelephonyLog.log("Control getSIPAccounts: " + clip(res));
+        if (res instanceof JSONArray) {
+            this.trunksJson = (JSONArray) res;
+        }
+        return this.trunksJson;
+    }
+
+    JSONObject phoneBalance(String provider, String phone) throws Exception {
+        JSONObject p = new JSONObject();
+        p.put("provider", provider);
+        p.put("phone_number", phone);
+        Object res = call("getPhoneNumberBalance", p, 20000);
+        TelephonyLog.log("Control balance " + phone + ": " + clip(res));
+        return asObject(res);
+    }
+
+    JSONObject offer(String provider) throws Exception {
+        JSONObject p = new JSONObject();
+        p.put("provider", provider);
+        p.put("language", java.util.Locale.getDefault().getLanguage());
+        p.put("country", java.util.Locale.getDefault().getCountry());
+        Object res = call("getOffer", p, 25000);
+        TelephonyLog.log("Control getOffer: " + clip(res));
+        return asObject(res);
+    }
+
+    /** Запрос покупки номера: сервер возвращает ссылку на оплату (payment_url), списания без оплаты нет. */
+    JSONObject requestNumberPurchase(String provider, String phone, String packageId) throws Exception {
+        JSONObject p = new JSONObject();
+        p.put("provider", provider);
+        p.put("phone_number", phone);
+        p.put("package_id", packageId);
+        Object res = call("getPhoneNumber", p, 30000);
+        TelephonyLog.log("Control getPhoneNumber: " + clip(res));
+        return asObject(res);
+    }
+
+    /** Привязка существующего номера: без кода сервер звонит на номер, с кодом подтверждает привязку. */
+    JSONObject connectNumber(String provider, String phone, String code) throws Exception {
+        JSONObject p = new JSONObject();
+        p.put("provider", provider);
+        p.put("phone_number", phone);
+        p.put("package_id", JSONObject.NULL);
+        p.put("code", code == null ? JSONObject.NULL : code);
+        Object res = call("connectPhoneNumber", p, 40000);
+        TelephonyLog.log("Control connectPhoneNumber: " + clip(res));
+        refreshTrunksQuietly();
+        return asObject(res);
+    }
+
+    void deleteTrunk(String oid) throws Exception {
+        JSONObject p = new JSONObject();
+        p.put("oid", oid);
+        call("deleteSIPAccount", p, 20000);
+        refreshTrunksQuietly();
+    }
+
+    private void refreshTrunksQuietly() {
+        try {
+            refreshTrunks();
+        } catch (Exception unused) {
+        }
+    }
+
+    /** «Перезагрузить объекты»: контакты, чаты и история заново с сервера. */
+    void reloadObjects() throws Exception {
+        this.data.clearForReload();
+        this.sessionPeers.clear();
+        this.threadSessions.clear();
+        sync();
     }
 
     private void onCommand(String str, JSONObject jSONObject) {
@@ -357,6 +553,11 @@ final class RingotelControl implements SipWebSocket.Listener {
                 this.userNumbers.put(userid, number);
             }
         }
+        if (!userid.isEmpty() && number == null && !name.isEmpty()) {
+            synchronized (this.userNames) {
+                this.userNames.put(userid, name);
+            }
+        }
         if (number != null && !name.isEmpty() && !userid.equals(this.myUserId)) {
             this.data.addContact(name, number);
         }
@@ -381,7 +582,12 @@ final class RingotelControl implements SipWebSocket.Listener {
                 number = this.userNumbers.get(party);
             }
             if (number == null) {
-                number = party;
+                synchronized (this.userNames) {
+                    number = this.userNames.get(party);
+                }
+            }
+            if (number == null) {
+                number = o.optString("name", party);
             }
             this.sessionPeers.put(id, number);
             this.threadSessions.put(PhoneData.key(number), id);
@@ -432,7 +638,7 @@ final class RingotelControl implements SipWebSocket.Listener {
                 }
             }
         }
-        if (existing != null) {
+        if (existing != null || this.data.isBlocked(number)) {
             return;
         }
         boolean wasForeground = TelecomPlusApplication.foreground;

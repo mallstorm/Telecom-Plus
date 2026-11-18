@@ -156,6 +156,52 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
         }
     }
 
+
+    @Override // ua.telecomplus.app.TelephonyEngine
+    public TelephonyResult<String> beginGoogleLogin() {
+        try {
+            JSONObject r = this.provisioning.requestOAuth("Google");
+            TelephonyLog.log("OAuth request: " + r);
+            int code = r.optInt("rcode", r.optInt("code", 0));
+            if (code > 0) {
+                return TelephonyResult.failure("PROVISIONING_REJECTED", serverText(r, code));
+            }
+            String location = r.optString("location", "").trim();
+            if (location.isEmpty()) {
+                return TelephonyResult.failure("NO_LOCATION", "Сервер не вернул страницу входа Google");
+            }
+            return TelephonyResult.success(location);
+        } catch (Exception e) {
+            return TelephonyResult.failure("OAUTH_REQUEST_FAILED", safeMessage(e));
+        }
+    }
+
+    @Override // ua.telecomplus.app.TelephonyEngine
+    public TelephonyResult<Void> finishGoogleLogin() {
+        try {
+            JSONObject complete = this.provisioning.completeOAuth();
+            TelephonyLog.log("OAuth complete: " + complete.toString().replaceAll("\"termpass\":\"[^\"]*\"", "\"termpass\":\"***\""));
+            int code = complete.optInt("rcode", complete.optInt("code", 0));
+            if (code > 0) {
+                return TelephonyResult.failure("PROVISIONING_REJECTED", serverText(complete, code));
+            }
+            if (complete.optString("termpass", "").trim().isEmpty()) {
+                return TelephonyResult.failure("NO_TERMINAL_PASSWORD", "Сервер подтвердил вход, но не выдал терминальный пароль");
+            }
+            JSONObject profile = new JSONObject(complete.toString());
+            String identity = complete.optString("email", complete.optString("login", complete.optString("name", "Google")));
+            profile.put("registration_identity", identity);
+            profile.put("server", "intertelecom.ringotel.net:443");
+            this.vault.put(PROFILE_KEY, profile.toString());
+            this.vault.remove(PENDING_PHONE_KEY);
+            update(snapshotFromProfile(profile, TelephonyRegistrationState.PROVISIONED, "Вход через Google выполнен"));
+            connect();
+            return TelephonyResult.success(null);
+        } catch (Exception e) {
+            return TelephonyResult.failure("OAUTH_COMPLETE_FAILED", safeMessage(e));
+        }
+    }
+
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> connect() {
         if (!this.snapshot.isProvisioned()) {
@@ -415,6 +461,19 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
     }
 
     private synchronized void onIncomingCall(String str, String str2) {
+        if (PhoneData.get(this.vault).isBlocked(str)) {
+            TelephonyLog.log("Входящий от заблокированного номера отклонён: " + str);
+            final SipUserAgent blockedAgent = this.agent;
+            if (blockedAgent != null) {
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        blockedAgent.hangup();
+                    }
+                }).start();
+            }
+            return;
+        }
         this.incoming = true;
         this.callDir = PhoneData.CALL_IN;
         this.callNumber = str == null ? "" : str;

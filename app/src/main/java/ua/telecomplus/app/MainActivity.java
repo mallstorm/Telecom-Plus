@@ -2673,6 +2673,16 @@ public final class MainActivity extends Activity {
                 matchWrap3.topMargin = dp(12);
                 card.addView(primary2, matchWrap3);
                 primary2.setOnClickListener(new defpackage.c(this, field2, primary2, 3));
+                Button google = secondary("Войти через Google");
+                LinearLayout.LayoutParams gp = matchWrap();
+                gp.topMargin = dp(10);
+                card.addView(google, gp);
+                google.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        MainActivity.this.startGoogleLogin();
+                    }
+                });
             }
             linearLayout.addView(card, cardMargin());
             linearLayout.addView(info("Телефонный пароль после активации хранится только в Android Keystore в зашифрованном виде."), cardMargin());
@@ -3220,6 +3230,13 @@ public final class MainActivity extends Activity {
                 }
             });
             row.addView(msg);
+            row.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View view) {
+                    MainActivity.this.blockNumberDialog(e.number);
+                    return true;
+                }
+            });
             card.addView(row, matchWrap());
         }
         linearLayout.addView(card, cardMargin());
@@ -3728,6 +3745,646 @@ public final class MainActivity extends Activity {
         handleLaunchIntent(intent);
     }
 
+    // ======================= Google-вход, номера, баланс =======================
+
+    private org.json.JSONArray numbersCache = new org.json.JSONArray();
+    private final java.util.Map<String, org.json.JSONObject> balanceCache = new java.util.HashMap<>();
+    private long numbersLoadedAt;
+    private boolean numbersLoading;
+
+    private void toastUi(final String str) {
+        this.handler.post(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(MainActivity.this, str, 1).show();
+            }
+        });
+    }
+
+    private void startGoogleLogin() {
+        showLoading("Открываем вход через Google…");
+        runTelephony(new Callable<TelephonyResult<String>>() {
+            @Override
+            public TelephonyResult<String> call() {
+                return MainActivity.this.telephony.beginGoogleLogin();
+            }
+        }, new TelephonyCallback<String>() {
+            @Override
+            public void accept(TelephonyResult<String> telephonyResult) {
+                if (telephonyResult instanceof TelephonyResult.Success) {
+                    MainActivity.this.showGoogleWebView((String) ((TelephonyResult.Success) telephonyResult).value);
+                    return;
+                }
+                MainActivity.this.showCabinet();
+                Toast.makeText(MainActivity.this, ((TelephonyResult.Failure) telephonyResult).message, 1).show();
+            }
+        });
+    }
+
+    private void showGoogleWebView(String str) {
+        final android.app.Dialog dialog = new android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        LinearLayout box = column();
+        LinearLayout bar = row();
+        bar.setGravity(16);
+        bar.setBackgroundColor(BLUE_DARK);
+        bar.setPadding(dp(14), dp(8), dp(8), dp(8));
+        bar.addView(label("Вход через Google", 18, -1, true), new LinearLayout.LayoutParams(0, -2, 1.0f));
+        Button close = button("✕", -1, 0);
+        close.setTextSize(20.0f);
+        bar.addView(close, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        box.addView(bar, new LinearLayout.LayoutParams(-1, dp(58)));
+        final android.webkit.WebView web = new android.webkit.WebView(this);
+        web.getSettings().setJavaScriptEnabled(true);
+        web.getSettings().setDomStorageEnabled(true);
+        web.getSettings().setUserAgentString(getPackageName());
+        final boolean[] done = {false};
+        web.setWebViewClient(new android.webkit.WebViewClient() {
+            private void check(String url) {
+                if (!done[0] && url != null && url.contains("ringotel.net/services/Google") && url.contains(".profile")) {
+                    done[0] = true;
+                    dialog.dismiss();
+                    MainActivity.this.completeGoogleLogin();
+                }
+            }
+
+            @Override
+            public void onPageStarted(android.webkit.WebView view, String url, android.graphics.Bitmap favicon) {
+                check(url);
+            }
+
+            @Override
+            public void onPageFinished(android.webkit.WebView view, String url) {
+                check(url);
+            }
+        });
+        box.addView(web, new LinearLayout.LayoutParams(-1, 0, 1.0f));
+        dialog.setContentView(box);
+        close.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                dialog.dismiss();
+            }
+        });
+        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialogInterface) {
+                web.destroy();
+                if (!done[0]) {
+                    MainActivity.this.showCabinet();
+                }
+            }
+        });
+        dialog.show();
+        web.loadUrl(str);
+    }
+
+    private void completeGoogleLogin() {
+        showLoading("Завершаем вход…");
+        runTelephony(new Callable<TelephonyResult<Void>>() {
+            @Override
+            public TelephonyResult<Void> call() {
+                return MainActivity.this.telephony.finishGoogleLogin();
+            }
+        }, new TelephonyCallback<Void>() {
+            @Override
+            public void accept(TelephonyResult<Void> telephonyResult) {
+                MainActivity.this.serviceStarted = false;
+                MainActivity.this.showCabinet();
+                if (telephonyResult instanceof TelephonyResult.Failure) {
+                    Toast.makeText(MainActivity.this, ((TelephonyResult.Failure) telephonyResult).message, 1).show();
+                } else {
+                    MainActivity.this.ensureTelephonyService();
+                }
+            }
+        });
+    }
+
+    private static String pickString(org.json.JSONObject o, String... keys) {
+        for (String k : keys) {
+            String v = o.optString(k, "");
+            if (!v.isEmpty() && !v.equals("null")) {
+                return v;
+            }
+        }
+        return "";
+    }
+
+    private String balanceText(org.json.JSONObject b) {
+        if (b == null) {
+            return "";
+        }
+        String amount = pickString(b, "balance", "amount", "sum", "money", "value");
+        if (amount.isEmpty()) {
+            org.json.JSONObject inner = b.optJSONObject("balance");
+            if (inner != null) {
+                amount = pickString(inner, "amount", "sum", "value", "balance");
+                String cur = pickString(inner, "currency", "cur");
+                return amount.isEmpty() ? "" : amount + (cur.isEmpty() ? "" : " " + cur);
+            }
+        }
+        String cur = pickString(b, "currency", "cur");
+        return amount.isEmpty() ? "" : amount + (cur.isEmpty() ? " UAH" : " " + cur);
+    }
+
+    private void refreshNumbers(final boolean force) {
+        final RingotelControl control = this.telephony == null ? null : this.telephony.control();
+        if (control == null || !control.isOnline() || this.numbersLoading) {
+            return;
+        }
+        if (!force && System.currentTimeMillis() - this.numbersLoadedAt < 60000) {
+            return;
+        }
+        this.numbersLoading = true;
+        this.numbersLoadedAt = System.currentTimeMillis();
+        this.executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    org.json.JSONArray trunks = control.refreshTrunks();
+                    java.util.Map<String, org.json.JSONObject> balances = new java.util.HashMap<>();
+                    for (int i = 0; i < trunks.length(); i++) {
+                        org.json.JSONObject t = trunks.optJSONObject(i);
+                        if (t == null) {
+                            continue;
+                        }
+                        String provider = t.optString("provider", control.providerId());
+                        String phone = pickString(t, "phone", "user");
+                        if (provider != null && !provider.isEmpty() && !phone.isEmpty()) {
+                            try {
+                                balances.put(phone, control.phoneBalance(provider, phone));
+                            } catch (Exception unused) {
+                            }
+                        }
+                    }
+                    MainActivity.this.numbersCache = trunks;
+                    MainActivity.this.balanceCache.putAll(balances);
+                } catch (Exception unused2) {
+                }
+                MainActivity.this.numbersLoading = false;
+                MainActivity.this.handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (MainActivity.this.dashboard != null && MainActivity.this.chatNumber == null && MainActivity.this.selectedTab == 4) {
+                            MainActivity.this.showCabinet();
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private void renderNumbers(LinearLayout linearLayout) {
+        final RingotelControl control = this.telephony == null ? null : this.telephony.control();
+        if (!this.telephonySnapshot.isProvisioned()) {
+            return;
+        }
+        refreshNumbers(false);
+        LinearLayout card = card();
+        LinearLayout head = row();
+        head.setGravity(16);
+        head.addView(label("Мои номера", 18, BLUE_DARK, true), new LinearLayout.LayoutParams(0, -2, 1.0f));
+        TextView refresh = label("↻ Обновить", 13, BLUE, true);
+        refresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.refreshNumbers(true);
+                Toast.makeText(MainActivity.this, "Обновляем…", 0).show();
+            }
+        });
+        head.addView(refresh, wrap());
+        card.addView(head, matchWrap());
+        if (control == null || !control.isOnline()) {
+            TextView off = label("Нет подключения к серверу телефонии", 14, MUTED, false);
+            off.setPadding(0, dp(10), 0, 0);
+            card.addView(off, matchWrap());
+        } else if (this.numbersCache.length() == 0) {
+            TextView none = label(this.numbersLoading ? "Загружаем…" : "К аккаунту пока не привязано номеров", 14, MUTED, false);
+            none.setPadding(0, dp(10), 0, 0);
+            card.addView(none, matchWrap());
+        }
+        for (int i = 0; i < this.numbersCache.length(); i++) {
+            final org.json.JSONObject t = this.numbersCache.optJSONObject(i);
+            if (t == null) {
+                continue;
+            }
+            final String phone = pickString(t, "phone", "user");
+            String balance = balanceText(this.balanceCache.get(phone));
+            LinearLayout row = column();
+            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            row.setBackground(rounded(SOFT_BLUE, 14, 0, 0));
+            row.addView(label(PhoneData.pretty(phone), 17, TEXT, true), matchWrap());
+            if (!balance.isEmpty()) {
+                row.addView(label("Баланс: " + balance, 14, GREEN, true), matchWrap());
+            }
+            int state = t.optInt("state", 1);
+            row.addView(label("Звонки и SMS: " + (state > 0 ? "включено" : "отключено"), 13, MUTED, false), matchWrap());
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.numberDialog(t, phone);
+                }
+            });
+            LinearLayout.LayoutParams lp = matchWrap();
+            lp.topMargin = dp(10);
+            card.addView(row, lp);
+        }
+        LinearLayout actions = row();
+        Button add = secondary("＋ Добавить номер");
+        add.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.addNumberDialog();
+            }
+        });
+        Button buy = secondary("Купить номер");
+        buy.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.buyNumberFlow();
+            }
+        });
+        actions.addView(add, new LinearLayout.LayoutParams(0, dp(48), 1.0f));
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(0, dp(48), 1.0f);
+        bl.leftMargin = dp(10);
+        actions.addView(buy, bl);
+        LinearLayout.LayoutParams ap = matchWrap();
+        ap.topMargin = dp(12);
+        card.addView(actions, ap);
+        Button reload = secondary("Перезагрузить чаты, контакты и историю с сервера");
+        LinearLayout.LayoutParams rp = matchWrap();
+        rp.topMargin = dp(10);
+        card.addView(reload, rp);
+        reload.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                final RingotelControl c = MainActivity.this.telephony.control();
+                if (c == null || !c.isOnline()) {
+                    Toast.makeText(MainActivity.this, "Нет подключения к серверу телефонии", 0).show();
+                    return;
+                }
+                Toast.makeText(MainActivity.this, "Загружаем с сервера…", 0).show();
+                MainActivity.this.executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            c.reloadObjects();
+                            MainActivity.this.toastUi("Данные обновлены");
+                        } catch (Exception e) {
+                            MainActivity.this.toastUi("Не удалось: " + e.getMessage());
+                        }
+                    }
+                });
+            }
+        });
+        linearLayout.addView(card, cardMargin());
+    }
+
+    private void numberDialog(final org.json.JSONObject trunk, final String phone) {
+        final String oid = trunk.optString("oid", "");
+        new AlertDialog.Builder(this).setTitle(PhoneData.pretty(phone)).setMessage("Звонки и SMS с этого номера работают через ваш аккаунт IT Phone.").setPositiveButton("Закрыть", (DialogInterface.OnClickListener) null).setNegativeButton("Отвязать номер", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                new AlertDialog.Builder(MainActivity.this).setTitle("Отвязать номер?").setMessage("Номер " + PhoneData.pretty(phone) + " будет удалён из аккаунта IT Phone.").setPositiveButton("Отвязать", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface2, int i2) {
+                        final RingotelControl c = MainActivity.this.telephony.control();
+                        if (c == null || oid.isEmpty()) {
+                            return;
+                        }
+                        MainActivity.this.executor.execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    c.deleteTrunk(oid);
+                                    MainActivity.this.numbersCache = c.trunks();
+                                    MainActivity.this.toastUi("Номер отвязан");
+                                } catch (Exception e) {
+                                    MainActivity.this.toastUi("Не удалось: " + e.getMessage());
+                                }
+                                MainActivity.this.handler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        MainActivity.this.showCabinet();
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+            }
+        }).show();
+    }
+
+    private String serverError(org.json.JSONObject r) {
+        String code = r.optString("code", r.optString("rcode", "0"));
+        if (code.isEmpty() || code.equals("0")) {
+            return null;
+        }
+        String text = r.optString("text", "Ошибка " + code);
+        return text.equals("InvalidCode") ? "Неверный код" : text;
+    }
+
+    private void addNumberDialog() {
+        final RingotelControl control = this.telephony.control();
+        if (control == null || !control.isOnline() || control.providerId() == null) {
+            Toast.makeText(this, "Нет подключения к серверу телефонии", 1).show();
+            return;
+        }
+        LinearLayout form = column();
+        form.setPadding(dp(20), dp(8), dp(20), 0);
+        final EditText number = field("380XXXXXXXXX", 3);
+        form.addView(number, new LinearLayout.LayoutParams(-1, dp(52)));
+        form.addView(info("На номер придёт короткий звонок. Введите последние четыре цифры номера, который позвонил."), cardMargin());
+        new AlertDialog.Builder(this).setTitle("Добавить номер Интертелеком").setView(form).setPositiveButton("Продолжить", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                final String phone = PhoneData.dialable(number.getText().toString());
+                if (phone.length() < 12) {
+                    Toast.makeText(MainActivity.this, "Введите номер в формате 380XXXXXXXXX", 1).show();
+                    return;
+                }
+                MainActivity.this.executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            org.json.JSONObject r = control.connectNumber(control.providerId(), phone, null);
+                            final String err = MainActivity.this.serverError(r);
+                            MainActivity.this.handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (err != null) {
+                                        Toast.makeText(MainActivity.this, err, 1).show();
+                                    } else {
+                                        MainActivity.this.addNumberCodeDialog(control, phone);
+                                    }
+                                }
+                            });
+                        } catch (Exception e) {
+                            MainActivity.this.toastUi("Не удалось: " + e.getMessage());
+                        }
+                    }
+                });
+            }
+        }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+    }
+
+    private void addNumberCodeDialog(final RingotelControl control, final String phone) {
+        LinearLayout form = column();
+        form.setPadding(dp(20), dp(8), dp(20), 0);
+        final EditText code = field("••••", 18);
+        code.setGravity(17);
+        code.setTextSize(24.0f);
+        code.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
+        form.addView(code, new LinearLayout.LayoutParams(-1, dp(58)));
+        new AlertDialog.Builder(this).setTitle("Код подтверждения").setView(form).setPositiveButton("Подтвердить", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                final String c = code.getText().toString().trim();
+                MainActivity.this.executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            org.json.JSONObject r = control.connectNumber(control.providerId(), phone, c);
+                            String err = MainActivity.this.serverError(r);
+                            if (err == null) {
+                                MainActivity.this.numbersCache = control.trunks();
+                                MainActivity.this.numbersLoadedAt = 0;
+                            }
+                            MainActivity.this.toastUi(err == null ? "Номер добавлен" : err);
+                        } catch (Exception e) {
+                            MainActivity.this.toastUi("Не удалось: " + e.getMessage());
+                        }
+                        MainActivity.this.handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                MainActivity.this.showCabinet();
+                            }
+                        });
+                    }
+                });
+            }
+        }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+    }
+
+    private void buyNumberFlow() {
+        final RingotelControl control = this.telephony.control();
+        final String provider = control == null ? null : control.providerId();
+        if (control == null || !control.isOnline() || provider == null) {
+            Toast.makeText(this, "Нет подключения к серверу телефонии", 1).show();
+            return;
+        }
+        Toast.makeText(this, "Загружаем предложение…", 0).show();
+        this.executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final org.json.JSONObject offer = control.offer(provider);
+                    MainActivity.this.handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            MainActivity.this.pickNumberDialog(control, provider, offer);
+                        }
+                    });
+                } catch (Exception e) {
+                    MainActivity.this.toastUi("Не удалось: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    private void pickNumberDialog(final RingotelControl control, final String provider, final org.json.JSONObject offer) {
+        org.json.JSONArray nums = offer.optJSONArray("numbers");
+        final org.json.JSONArray packs = offer.optJSONArray("packages");
+        if (nums == null || nums.length() == 0 || packs == null || packs.length() == 0) {
+            Toast.makeText(this, "Свободных номеров или тарифов сейчас нет", 1).show();
+            return;
+        }
+        final String[] numbers = new String[nums.length()];
+        for (int i = 0; i < numbers.length; i++) {
+            Object o = nums.opt(i);
+            numbers[i] = o instanceof org.json.JSONObject ? pickString((org.json.JSONObject) o, "phone_number", "number", "phone") : String.valueOf(o);
+        }
+        new AlertDialog.Builder(this).setTitle("Выберите номер").setItems(numbers, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i2) {
+                MainActivity.this.pickPackageDialog(control, provider, offer, numbers[i2]);
+            }
+        }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+    }
+
+    private void pickPackageDialog(final RingotelControl control, final String provider, org.json.JSONObject offer, final String phone) {
+        final org.json.JSONArray packs = offer.optJSONArray("packages");
+        final String[] titles = new String[packs.length()];
+        for (int i = 0; i < titles.length; i++) {
+            org.json.JSONObject p = packs.optJSONObject(i);
+            int fee = p == null ? 0 : p.optInt("subscription_fee", 0) + p.optInt("install_fee", 0);
+            titles[i] = (p == null ? "Тариф" : p.optString("package_name", "Тариф")) + (fee > 0 ? " — " + fee + " UAH" : "");
+        }
+        new AlertDialog.Builder(this).setTitle("Тариф для " + PhoneData.pretty(phone)).setItems(titles, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i2) {
+                final org.json.JSONObject p = packs.optJSONObject(i2);
+                if (p == null) {
+                    return;
+                }
+                final String packageId = p.optString("package_id", "");
+                int fee = p.optInt("subscription_fee", 0) + p.optInt("install_fee", 0);
+                String bonus = p.optString("bonus", "");
+                String msg = "Номер: " + PhoneData.pretty(phone) + "\nТариф: " + p.optString("package_name", "") + "\nСтоимость подключения: " + fee + " UAH" + (bonus.isEmpty() ? "" : "\nБонусы на абонплату: " + bonus + " UAH") + "\n\nДальше откроется страница оплаты. Деньги списываются только после оплаты на ней.";
+                new AlertDialog.Builder(MainActivity.this).setTitle("Купить номер").setMessage(msg).setPositiveButton("Перейти к оплате", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface2, int i3) {
+                        MainActivity.this.executor.execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    org.json.JSONObject r = control.requestNumberPurchase(provider, phone, packageId);
+                                    final String err = MainActivity.this.serverError(r);
+                                    final String url = r.optString("payment_url", "");
+                                    MainActivity.this.handler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            if (err != null || url.isEmpty()) {
+                                                Toast.makeText(MainActivity.this, err != null ? err : "Сервер не вернул ссылку на оплату", 1).show();
+                                                return;
+                                            }
+                                            try {
+                                                MainActivity.this.startActivity(new Intent("android.intent.action.VIEW", Uri.parse(url)));
+                                            } catch (Exception unused) {
+                                                Toast.makeText(MainActivity.this, "Не удалось открыть страницу оплаты", 1).show();
+                                            }
+                                        }
+                                    });
+                                } catch (Exception e) {
+                                    MainActivity.this.toastUi("Не удалось: " + e.getMessage());
+                                }
+                            }
+                        });
+                    }
+                }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+            }
+        }).setNegativeButton("Назад", (DialogInterface.OnClickListener) null).show();
+    }
+
+    // ======================= Настройки уведомлений и заблокированные =======================
+
+    private void openChannelSettings(String channel) {
+        try {
+            Intent intent = new Intent("android.settings.CHANNEL_NOTIFICATION_SETTINGS");
+            intent.putExtra("android.provider.extra.APP_PACKAGE", getPackageName());
+            intent.putExtra("android.provider.extra.CHANNEL_ID", channel);
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                Intent intent2 = new Intent("android.settings.APP_NOTIFICATION_SETTINGS");
+                intent2.putExtra("android.provider.extra.APP_PACKAGE", getPackageName());
+                startActivity(intent2);
+            } catch (Exception unused) {
+            }
+        }
+    }
+
+    private LinearLayout settingRow(String title, String hint, View.OnClickListener listener) {
+        LinearLayout row = column();
+        row.setPadding(0, dp(10), 0, dp(10));
+        row.addView(label(title, 16, TEXT, true), matchWrap());
+        row.addView(label(hint, 12, MUTED, false), matchWrap());
+        row.setOnClickListener(listener);
+        return row;
+    }
+
+    private void renderPhoneSettings(LinearLayout linearLayout) {
+        if (!this.telephonySnapshot.isProvisioned()) {
+            return;
+        }
+        LinearLayout card = card();
+        card.addView(label("Телефония: настройки", 18, BLUE_DARK, true), matchWrap());
+        card.addView(settingRow("Звук и вид уведомлений о вызовах", "Мелодия, вибрация, показ на экране блокировки", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.openChannelSettings(TelephonyService.CH_CALLS);
+            }
+        }), matchWrap());
+        card.addView(settingRow("Уведомления о сообщениях", "Звук и приоритет новых сообщений", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.openChannelSettings(TelephonyService.CH_MESSAGES);
+            }
+        }), matchWrap());
+        card.addView(settingRow("Режим «Не беспокоить»", "Разрешить вызовам пробиваться через режим DnD", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                try {
+                    MainActivity.this.startActivity(new Intent("android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS"));
+                } catch (Exception unused) {
+                }
+            }
+        }), matchWrap());
+        card.addView(settingRow("Работа в фоне", batteryRestricted() ? "Сейчас система может останавливать приложение — отключите ограничение батареи" : "Ограничение батареи отключено", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.requestBatteryWhitelist();
+            }
+        }), matchWrap());
+        int blockedCount = phoneData().blocked().size();
+        card.addView(settingRow("Заблокированные номера (" + blockedCount + ")", "Вызовы и сообщения с этих номеров игнорируются", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.blockedDialog();
+            }
+        }), matchWrap());
+        linearLayout.addView(card, cardMargin());
+    }
+
+    private void blockedDialog() {
+        final List<String> blocked = phoneData().blocked();
+        final String[] items = new String[blocked.size()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = PhoneData.pretty(blocked.get(i));
+        }
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("Заблокированные номера");
+        if (items.length == 0) {
+            b.setMessage("Список пуст. Заблокировать номер можно кнопкой ниже или долгим нажатием на вызов в «Недавних».");
+        } else {
+            b.setItems(items, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i2) {
+                    MainActivity.this.phoneData().setBlocked(blocked.get(i2), false);
+                    Toast.makeText(MainActivity.this, "Номер разблокирован", 0).show();
+                    MainActivity.this.showCabinet();
+                }
+            });
+        }
+        b.setPositiveButton("Заблокировать номер", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i2) {
+                MainActivity.this.blockNumberDialog(null);
+            }
+        }).setNegativeButton("Закрыть", (DialogInterface.OnClickListener) null).show();
+    }
+
+    private void blockNumberDialog(String preset) {
+        LinearLayout form = column();
+        form.setPadding(dp(20), dp(8), dp(20), 0);
+        final EditText number = field("Номер", 3);
+        if (preset != null) {
+            number.setText(preset);
+        }
+        form.addView(number, new LinearLayout.LayoutParams(-1, dp(52)));
+        new AlertDialog.Builder(this).setTitle("Заблокировать номер").setView(form).setPositiveButton("Заблокировать", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                String n = number.getText().toString().trim();
+                if (n.isEmpty()) {
+                    return;
+                }
+                MainActivity.this.phoneData().setBlocked(n, true);
+                Toast.makeText(MainActivity.this, "Номер заблокирован", 0).show();
+                MainActivity.this.showCabinet();
+            }
+        }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+    }
+
     private void showCabinet() {
         if (this.chatNumber != null && this.selectedTab == 6) {
             showChat();
@@ -3775,6 +4432,8 @@ public final class MainActivity extends Activity {
             renderChats(column2);
         } else {
             renderProfile(column2);
+            renderNumbers(column2);
+            renderPhoneSettings(column2);
         }
         scrollView.addView(column2);
         frameLayout.addView(scrollView, new FrameLayout.LayoutParams(-1, -1));

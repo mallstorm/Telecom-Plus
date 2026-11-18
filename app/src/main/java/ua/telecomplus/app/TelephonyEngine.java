@@ -19,6 +19,10 @@ interface TelephonyEngine {
 
     RingotelControl control();
 
+    TelephonyResult<String> beginGoogleLogin();
+
+    TelephonyResult<Void> finishGoogleLogin();
+
     boolean incomingRinging();
 
     TelephonyResult<Void> confirmProvisioningOtp(String str);
