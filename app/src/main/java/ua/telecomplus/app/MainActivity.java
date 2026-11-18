@@ -2870,56 +2870,48 @@ public final class MainActivity extends Activity {
         plus.setOnClickListener(new defpackage.d(this, 2));
         bal.addView(plus, pp);
         parent.addView(bal, matchWrap());
-        LinearLayout tar = row();
-        tar.setGravity(16);
-        tar.setPadding(dp(14), dp(14), dp(14), dp(14));
-        tar.setBackground(rounded(-1, 20, BORDER, 1));
-        tar.addView(circleIcon("★", Color.rgb(228, 169, 0), Color.rgb(255, 245, 191), 47), lp(dp(47), dp(47), 0));
+        FrameLayout tar = new FrameLayout(this);
+        tar.setBackground(rounded(-1, 22, BORDER, 1));
+        View corner = new View(this);
+        corner.setBackground(rounded(Color.rgb(255, 226, 98), 40, 0, 0));
+        FrameLayout.LayoutParams cnp = new FrameLayout.LayoutParams(dp(110), dp(60));
+        cnp.gravity = 85;
+        cnp.rightMargin = dp(-30);
+        cnp.bottomMargin = dp(-34);
+        tar.addView(corner, cnp);
+        LinearLayout tr = row();
+        tr.setGravity(16);
+        tr.setPadding(dp(16), dp(16), dp(16), dp(16));
+        tr.addView(logo(), new LinearLayout.LayoutParams(dp(54), dp(54)));
         LinearLayout tc = column();
-        tc.setPadding(dp(12), 0, dp(8), 0);
+        tc.setPadding(dp(14), 0, dp(8), 0);
         tc.addView(label("Мой тариф", 12, MUTED, false), matchWrap());
-        tc.addView(label(displayValue(d.tariffName), 16, TEXT, true), matchWrap());
-        tc.addView(label(displayValue(d.status), 12, MUTED, false), matchWrap());
-        tar.addView(tc, lp(0, -2, 1.0f));
-        tar.addView(label("›", 26, TEXT, false), wrap());
+        tc.addView(label(displayValue(d.tariffName), 18, TEXT, true), matchWrap());
+        String stl = displayValue(d.status);
+        boolean active = stl.toLowerCase(Locale.ROOT).startsWith("актив");
+        TextView stc = chip(active ? "●  Активен" : stl, active ? GREEN : MUTED, active ? Color.rgb(226, 246, 235) : Color.rgb(238, 242, 248));
+        LinearLayout.LayoutParams scp = wrap();
+        scp.topMargin = dp(6);
+        tc.addView(stc, scp);
+        tr.addView(tc, lp(0, -2, 1.0f));
+        tr.addView(label("›", 28, TEXT, false), wrap());
+        tar.addView(tr, new FrameLayout.LayoutParams(-1, -2));
         tar.setOnClickListener(tabClick(7, 0));
         LinearLayout.LayoutParams tm = matchWrap();
-        tm.topMargin = dp(10);
+        tm.topMargin = dp(12);
         parent.addView(tar, tm);
         if (!d.packages.isEmpty()) {
             LinearLayout st = row();
-            int n = Math.min(3, d.packages.size());
+            int n = Math.min(2, d.packages.size());
             for (int i = 0; i < n; i++) {
-                PackageBalance pb = d.packages.get(i);
-                LinearLayout t = column();
-                t.setPadding(dp(12), dp(12), dp(12), dp(14));
-                t.setBackground(rounded(-1, 18, BORDER, 1));
-                String g = i == 0 ? "◷" : i == 1 ? "☎" : "✉";
-                t.addView(circleIcon(g, i == 0 ? BLUE : Color.rgb(228, 169, 0), i == 0 ? SOFT_BLUE : Color.rgb(255, 245, 191), 30), lp(dp(30), dp(30), 0));
-                TextView tl = label(pb.title, 12, TEXT, true);
-                tl.setMaxLines(2);
-                tl.setPadding(0, dp(8), 0, dp(4));
-                t.addView(tl, matchWrap());
-                TextView sub = label(displayValue(pb.subtitle), 13, MUTED, false);
-                sub.setMaxLines(3);
-                t.addView(sub, matchWrap());
-                t.addView(new View(this), lp(1, dp(8), 0));
-                LinearLayout track = row();
-                track.setBackground(rounded(Color.rgb(228, 237, 249), 4, 0, 0));
-                View f = new View(this);
-                f.setBackground(rounded(YELLOW, 4, 0, 0));
-                int w = Math.max(4, Math.min(100, pb.progressPercent));
-                track.addView(f, new LinearLayout.LayoutParams(0, dp(6), (float) w));
-                track.addView(new View(this), new LinearLayout.LayoutParams(0, dp(6), (float) (100 - w)));
-                t.addView(track, lp(-1, dp(6), 0));
                 LinearLayout.LayoutParams sp2 = lp(0, -1, 1.0f);
                 if (i > 0) {
-                    sp2.leftMargin = dp(9);
+                    sp2.leftMargin = dp(10);
                 }
-                st.addView(t, sp2);
+                st.addView(pkgTile(d.packages.get(i)), sp2);
             }
             LinearLayout.LayoutParams sm = matchWrap();
-            sm.topMargin = dp(10);
+            sm.topMargin = dp(12);
             parent.addView(st, sm);
         }
         LinearLayout qa = row();
@@ -6098,5 +6090,76 @@ public final class MainActivity extends Activity {
         }
         e.setContentDescription(hint.equals("password") ? "Пароль" : "Логин");
         e.setTag(hint);
+    }
+
+    private static int usageColor(int remaining) {
+        float h = 120.0f * Math.max(0, Math.min(100, remaining)) / 100.0f;
+        return Color.HSVToColor(new float[]{h, 0.78f, 0.86f});
+    }
+
+    private static String shortValue(String raw) {
+        String t = raw == null ? "" : raw;
+        String low = t.toLowerCase(Locale.ROOT);
+        if (low.contains("неогранич") || low.contains("необмеж")) {
+            return "Безлимит";
+        }
+        t = t.replaceAll("(\\d+)\\s*час\\S*", "$1 ч").replaceAll("(\\d+)\\s*минут\\S*", "$1 мин").replaceAll("(\\d+)\\s*секунд\\S*", "$1 с");
+        if (t.contains(" ч ") || t.contains(" мин")) {
+            t = t.replaceAll("\\s*\\d+\\s*с\\b", "");
+        }
+        return t.trim();
+    }
+
+    private View pkgTile(PackageBalance pb) {
+        String sub = displayValue(pb.subtitle);
+        String date = "";
+        String value = sub;
+        Matcher m = Pattern.compile("^(.*?)\\s+(?:по|до)\\s+(\\d{2}\\.\\d{2}\\.\\d{4})\\s*$").matcher(sub);
+        if (m.find()) {
+            value = m.group(1);
+            date = "до " + m.group(2);
+        }
+        boolean unlimited = sub.toLowerCase(Locale.ROOT).contains("неогранич") || sub.toLowerCase(Locale.ROOT).contains("необмеж");
+        int pct = unlimited ? 100 : pb.progressPercent;
+        int color = usageColor(pct);
+        String tl = pb.title.toLowerCase(Locale.ROOT);
+        int icon = (tl.contains("интернет") || tl.contains("трафик") || tl.contains("гб")) ? R.drawable.ic_globe : (tl.contains("sms") || tl.contains("смс")) ? R.drawable.ic_mail : R.drawable.ic_phone;
+        LinearLayout t = column();
+        t.setPadding(dp(14), dp(14), dp(14), dp(16));
+        t.setBackground(rounded(-1, 20, BORDER, 1));
+        FrameLayout ib = new FrameLayout(this);
+        ib.setBackground(rounded(Color.argb(40, Color.red(color), Color.green(color), Color.blue(color)), 18, 0, 0));
+        ib.addView(new Ico.PlainView(this, Ico.get(this, icon, color), 0.6f), new FrameLayout.LayoutParams(dp(36), dp(36)));
+        t.addView(ib, lp(dp(36), dp(36), 0));
+        TextView title = label(pb.title, 13, MUTED, true);
+        title.setMinLines(2);
+        title.setMaxLines(2);
+        title.setPadding(0, dp(10), 0, dp(4));
+        t.addView(title, matchWrap());
+        TextView val = label(shortValue(value), 22, TEXT, true);
+        val.setSingleLine(true);
+        t.addView(val, matchWrap());
+        TextView dt = label(date.isEmpty() ? " " : date, 12, MUTED, false);
+        dt.setSingleLine(true);
+        t.addView(dt, matchWrap());
+        t.addView(new View(this), lp(1, 0, 1.0f));
+        LinearLayout track = row();
+        track.setBackground(rounded(Color.rgb(228, 237, 249), 5, 0, 0));
+        int w = pct <= 0 ? 0 : Math.max(4, Math.min(100, pct));
+        if (w > 0) {
+            View f = new View(this);
+            f.setBackground(rounded(color, 5, 0, 0));
+            track.addView(f, new LinearLayout.LayoutParams(0, dp(8), (float) w));
+        }
+        if (w < 100) {
+            track.addView(new View(this), new LinearLayout.LayoutParams(0, dp(8), (float) (100 - w)));
+        }
+        LinearLayout.LayoutParams tp = lp(-1, dp(8), 0);
+        tp.topMargin = dp(12);
+        t.addView(track, tp);
+        TextView pl = label(unlimited ? "без ограничений" : "осталось " + pct + "%", 11, color, true);
+        pl.setPadding(0, dp(6), 0, 0);
+        t.addView(pl, matchWrap());
+        return t;
     }
 }
