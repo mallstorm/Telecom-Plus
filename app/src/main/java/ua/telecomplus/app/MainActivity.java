@@ -1595,26 +1595,44 @@ public final class MainActivity extends Activity {
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showOtpLogin$22(Button button, View view) {
-        markPortalOtpRequested();
-        int i = 0;
-        button.setEnabled(false);
-        button.setText("Запрашиваем звонок…");
-        PortalWebAuthBridge portalWebAuthBridge = this.webAuth;
-        if (portalWebAuthBridge != null) {
-            portalWebAuthBridge.requestOtp(this.phone, new a(this, 1));
-        } else {
-            runPortal(new defpackage.b(this, i), new a(this, 2));
-        }
+    public /* synthetic */ void lambda$showOtpLogin$22(final Button button, View view) {
+        final int[] types = {1, 2, 3};
+        new AlertDialog.Builder(this).setTitle("Получить одноразовый пароль").setItems(new String[]{"Звонок на номер", "Звонок на контактный номер", "SMS на номер"}, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, final int i) {
+                MainActivity.this.markPortalOtpRequested();
+                button.setEnabled(false);
+                button.setText("Запрашиваем…");
+                MainActivity.this.runPortal(new Callable<PortalResult<PortalLoginFlow.Challenge>>() {
+                    @Override
+                    public PortalResult<PortalLoginFlow.Challenge> call() {
+                        return MainActivity.this.gateway.loginFlow().resend(types[i]);
+                    }
+                }, new PortalCallback<PortalLoginFlow.Challenge>() {
+                    @Override
+                    public void accept(PortalResult<PortalLoginFlow.Challenge> portalResult) {
+                        if (!(portalResult instanceof PortalResult.Success)) {
+                            String str = ((PortalResult.Failure) portalResult).message;
+                            MainActivity.this.registerAuthGuard(str);
+                            MainActivity.this.showOtpLogin(str);
+                            return;
+                        }
+                        MainActivity.this.clearAuthGuard();
+                        PortalLoginFlow.Challenge challenge = (PortalLoginFlow.Challenge) ((PortalResult.Success) portalResult).value;
+                        MainActivity.this.otpHint = challenge == null ? "" : challenge.hint;
+                        MainActivity.this.otpSeconds = 600;
+                        MainActivity.this.otpRepeatAllowedAt = System.currentTimeMillis() + 30000;
+                        Toast.makeText(MainActivity.this, "Одноразовый пароль отправлен", 0).show();
+                        MainActivity.this.showOtpLogin(null);
+                    }
+                });
+            }
+        }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$showOtpLogin$23(View view) {
-        PortalWebAuthBridge portalWebAuthBridge = this.webAuth;
-        if (portalWebAuthBridge != null) {
-            portalWebAuthBridge.resetAuth();
-        }
-        showNumberLogin(null);
+        showPasswordLogin(null);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1656,24 +1674,75 @@ public final class MainActivity extends Activity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$showPasswordLogin$14(EditText editText, EditText editText2, Button button, View view) {
-        final String digits = digits(editText.getText().toString());
-        final String obj = editText2.getText().toString();
+        startPortalLogin(editText.getText().toString(), editText2.getText().toString(), button);
+    }
+
+    private String otpHint = "";
+
+    private void startPortalLogin(String str, final String str2, final Button button) {
+        final String digits = digits(str);
         this.phone = digits;
         button.setEnabled(false);
-        button.setText("Входим…");
-        PortalWebAuthBridge portalWebAuthBridge = this.webAuth;
-        if (portalWebAuthBridge != null) {
-            portalWebAuthBridge.loginWithPassword(digits, obj, new b(this, digits, 2));
-        } else {
-            runPortal(new Callable() { // from class: k
-                @Override // java.util.concurrent.Callable
-                public final Object call() {
-                    PortalResult lambda$showPasswordLogin$12;
-                    lambda$showPasswordLogin$12 = MainActivity.this.lambda$showPasswordLogin$12(digits, obj);
-                    return lambda$showPasswordLogin$12;
+        button.setText("Подготовка…");
+        runPortal(new Callable<PortalResult<String>>() {
+            @Override
+            public PortalResult<String> call() {
+                return MainActivity.this.gateway.loginFlow().start();
+            }
+        }, new PortalCallback<String>() {
+            @Override
+            public void accept(PortalResult<String> portalResult) {
+                if (!(portalResult instanceof PortalResult.Success)) {
+                    String str3 = ((PortalResult.Failure) portalResult).message;
+                    MainActivity.this.registerAuthGuard(str3);
+                    MainActivity.this.showPasswordLogin(str3);
+                    return;
                 }
-            }, new a(this, 4));
+                button.setText("Проверка безопасности…");
+                TurnstileSolver.solve(MainActivity.this, (String) ((PortalResult.Success) portalResult).value, PortalLoginFlow.ACTION_PASSWORD, new TurnstileSolver.Callback() {
+                    @Override
+                    public void onToken(final String str4) {
+                        button.setText("Входим…");
+                        MainActivity.this.runPortal(new Callable<PortalResult<PortalLoginFlow.Challenge>>() {
+                            @Override
+                            public PortalResult<PortalLoginFlow.Challenge> call() {
+                                return MainActivity.this.gateway.loginFlow().submitCredentials(digits, str2, str4);
+                            }
+                        }, new PortalCallback<PortalLoginFlow.Challenge>() {
+                            @Override
+                            public void accept(PortalResult<PortalLoginFlow.Challenge> portalResult2) {
+                                MainActivity.this.onPortalStepResult(portalResult2);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onFailure(String str4) {
+                        MainActivity.this.showPasswordLogin(str4);
+                    }
+                });
+            }
+        });
+    }
+
+    private void onPortalStepResult(PortalResult<PortalLoginFlow.Challenge> portalResult) {
+        if (!(portalResult instanceof PortalResult.Success)) {
+            String str = ((PortalResult.Failure) portalResult).message;
+            registerAuthGuard(str);
+            showPasswordLogin(str);
+            return;
         }
+        clearAuthGuard();
+        PortalLoginFlow.Challenge challenge = (PortalLoginFlow.Challenge) ((PortalResult.Success) portalResult).value;
+        if (challenge == null) {
+            enterCabinet();
+            return;
+        }
+        this.otpHint = challenge.hint;
+        this.otpSeconds = 600;
+        this.otpRepeatAllowedAt = System.currentTimeMillis() + 30000;
+        markPortalOtpRequested();
+        showOtpLogin(null);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -3054,6 +3123,10 @@ public final class MainActivity extends Activity {
     }
 
     private void showNumberLogin(String str) {
+        showPasswordLogin(str);
+    }
+
+    private void legacyShowNumberLogin(String str) {
         int i = 1;
         clearPortalOtpUi(true);
         stopOtpTimer();
@@ -3120,7 +3193,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams matchWrap = matchWrap();
         matchWrap.topMargin = dp(20);
         card.addView(label("Подтверждение входа", 24, BLUE_DARK, true), matchWrap());
-        String str2 = "На номер +380" + maskPhone(this.phone) + " выполнен короткий звонок. Введите последние четыре цифры номера вызывающего абонента.";
+        String str2 = this.otpHint.isEmpty() ? "На номер +380" + maskPhone(this.phone) + " выполнен короткий звонок. Введите последние четыре цифры номера вызывающего абонента." : this.otpHint;
         int i3 = MUTED;
         TextView label = label(str2, 15, i3, false);
         label.setPadding(0, dp(10), 0, dp(16));
@@ -3164,17 +3237,17 @@ public final class MainActivity extends Activity {
             card.addView(secondary, matchWrap5);
             secondary.setOnClickListener(new defpackage.d(this, i));
         }
-        Button secondary2 = secondary("Повторить короткий звонок");
+        Button secondary2 = secondary("Получить код ещё раз");
         LinearLayout.LayoutParams matchWrap6 = matchWrap();
         matchWrap6.topMargin = dp(10);
         card.addView(secondary2, matchWrap6);
         secondary2.setOnClickListener(new defpackage.e(this, secondary2, i));
-        Button secondary3 = secondary("Изменить номер");
+        Button secondary3 = secondary("Изменить номер или пароль");
         LinearLayout.LayoutParams matchWrap7 = matchWrap();
         matchWrap7.topMargin = dp(10);
         card.addView(secondary3, matchWrap7);
         secondary3.setOnClickListener(new defpackage.d(this, i2));
-        TextView label4 = label("Если звонок не поступил за 20–30 секунд, нажмите «Повторить короткий звонок» один раз.", 13, i3, false);
+        TextView label4 = label("Если звонок не поступил за 20–30 секунд, запросите код ещё раз: звонком или SMS.", 13, i3, false);
         label4.setGravity(17);
         label4.setPadding(dp(4), dp(12), dp(4), 0);
         card.addView(label4, matchWrap());
@@ -3200,9 +3273,9 @@ public final class MainActivity extends Activity {
         label.setPadding(0, dp(14), 0, dp(24));
         column.addView(label, matchWrap());
         LinearLayout card = card();
-        card.addView(label("Вход по личному паролю", 24, BLUE_DARK, true), matchWrap());
+        card.addView(label("Вход в кабинет", 24, BLUE_DARK, true), matchWrap());
         int i2 = MUTED;
-        TextView label2 = label("Введите 9-значный номер или цифровой идентификатор и постоянный пароль личного кабинета.", 15, i2, false);
+        TextView label2 = label("Введите номер (9 цифр без начального нуля) или идентификатор и пароль личного кабинета. Затем портал позвонит на номер: нужны последние четыре цифры вызывающего номера.", 15, i2, false);
         label2.setPadding(0, dp(10), 0, dp(16));
         card.addView(label2, matchWrap());
         final EditText field = field("Номер или цифровой идентификатор", 3);
@@ -3230,11 +3303,6 @@ public final class MainActivity extends Activity {
                 MainActivity.this.lambda$showPasswordLogin$14(field, field2, primary, view);
             }
         });
-        Button secondary = secondary("Войти по одноразовому паролю");
-        LinearLayout.LayoutParams matchWrap2 = matchWrap();
-        matchWrap2.topMargin = dp(10);
-        card.addView(secondary, matchWrap2);
-        secondary.setOnClickListener(new defpackage.h(this, field, i));
         column.addView(card, matchWrap());
         TextView label4 = label("Личный пароль не сохраняется. После успешного входа приложение хранит только зашифрованную серверную сессию.", 13, i2, false);
         label4.setGravity(17);
@@ -3365,12 +3433,26 @@ public final class MainActivity extends Activity {
         }
         button.setEnabled(false);
         button.setText("Проверяем…");
-        PortalWebAuthBridge portalWebAuthBridge = this.webAuth;
-        if (portalWebAuthBridge != null) {
-            portalWebAuthBridge.confirmOtp(digits, new a(this, 6));
-        } else {
-            runPortal(new defpackage.m(this, digits, i), new a(this, 7));
-        }
+        final String code = digits;
+        runPortal(new Callable<PortalResult<Void>>() {
+            @Override
+            public PortalResult<Void> call() {
+                return MainActivity.this.gateway.loginFlow().confirm(code);
+            }
+        }, new PortalCallback<Void>() {
+            @Override
+            public void accept(PortalResult<Void> portalResult) {
+                MainActivity.this.portalOtpAutoSubmitInFlight = false;
+                if (portalResult instanceof PortalResult.Success) {
+                    MainActivity.this.clearAuthGuard();
+                    MainActivity.this.enterCabinet();
+                } else {
+                    String str = ((PortalResult.Failure) portalResult).message;
+                    MainActivity.this.registerAuthGuard(str);
+                    MainActivity.this.showOtpLogin(str);
+                }
+            }
+        });
     }
 
     private String tabTitle() {

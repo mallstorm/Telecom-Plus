@@ -150,4 +150,9 @@ final class DemoPortalClient implements SubscriberPortalGateway {
     public PortalResult<Void> validateSession() {
         return this.loggedIn ? PortalResult.success(null) : PortalResult.failure("Нет сессии", true);
     }
+
+    @Override // ua.telecomplus.app.SubscriberPortalGateway
+    public PortalLoginFlow loginFlow() {
+        return null;
+    }
 }

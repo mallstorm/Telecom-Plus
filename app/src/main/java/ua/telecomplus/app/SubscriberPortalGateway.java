@@ -33,6 +33,8 @@ interface SubscriberPortalGateway {
 
     PortalResult<Void> importBrowserSession(String str, String str2);
 
+    PortalLoginFlow loginFlow();
+
     PortalResult<Void> loginWithPassword(String str, String str2);
 
     PortalResult<Void> logout(boolean z);

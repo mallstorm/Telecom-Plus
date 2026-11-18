@@ -118,7 +118,7 @@ final class IntertelecomPortalClient implements SubscriberPortalGateway {
         return sb.toString();
     }
 
-    private <T> PortalResult<T> failure(Response response) {
+    <T> PortalResult<T> failure(Response response) {
         String str;
         Exception exc = response.error;
         if (exc != null) {
@@ -184,7 +184,7 @@ final class IntertelecomPortalClient implements SubscriberPortalGateway {
         }
     }
 
-    private static String normalizeNumber(String str) {
+    static String normalizeNumber(String str) {
         String digits = digits(str);
         if (digits.startsWith("380")) {
             digits = digits.substring(3);
@@ -837,5 +837,45 @@ final class IntertelecomPortalClient implements SubscriberPortalGateway {
 
     private Response request(String str, String str2, byte[] bArr, String str3, boolean z) {
         return request(str, str2, bArr, str3, z, null);
+    }
+
+    private volatile PortalLoginFlow loginFlow;
+
+    static String digitsOf(String str) {
+        return digits(str);
+    }
+
+    @Override // ua.telecomplus.app.SubscriberPortalGateway
+    public PortalLoginFlow loginFlow() {
+        PortalLoginFlow flow = this.loginFlow;
+        if (flow == null) {
+            flow = new PortalLoginFlow(this);
+            this.loginFlow = flow;
+        }
+        return flow;
+    }
+
+    void resetSession() {
+        this.cookieStore.clear();
+        this.authForm = null;
+    }
+
+    Response send(String str, String str2, byte[] bArr, String str3, boolean z, String str4) {
+        return request(str, str2, bArr, str3, z, str4);
+    }
+
+    Response sendMultipart(String str, Map<String, String> map, String str2) {
+        return multipart(str, map, str2, false);
+    }
+
+    boolean completeLogin(String str) {
+        if (!this.cookieStore.hasSession()) {
+            this.cookieStore.clear();
+            return false;
+        }
+        this.authForm = null;
+        this.currentPhone = str;
+        this.vault.put(KEY_PHONE, str);
+        return true;
     }
 }
