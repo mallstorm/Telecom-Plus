@@ -52,6 +52,9 @@ final class RingotelHostnameVerifier implements HostnameVerifier {
             return false;
         }
         try {
+            if (RingotelTls.chainsToRoot(sSLSession.getPeerCertificates())) {
+                return true;
+            }
             Certificate[] peerCertificates = sSLSession.getPeerCertificates();
             if (peerCertificates != null && peerCertificates.length != 0) {
                 Certificate certificate = peerCertificates[0];

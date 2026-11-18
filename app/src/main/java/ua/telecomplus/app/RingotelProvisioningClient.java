@@ -40,21 +40,21 @@ final class RingotelProvisioningClient {
      * соединение по IP без SNI, Host = intertelecom.ringotel.net:443, Connection: close.
      */
     private JSONObject command(String str, JSONObject jSONObject) throws Exception {
-        int saved = SipWebSocket.savedDirectMode();
-        int[] order = saved == 0 ? new int[]{0, 1} : new int[]{1, 0};
+        // как оригинал: сначала IP без SNI; запасной вариант - обычное подключение по имени
+        boolean[] order = SipWebSocket.savedDirectMode() == 0 && SipWebSocket.hasSavedMode() ? new boolean[]{false, true} : new boolean[]{true, false};
         Exception last = null;
-        for (int mode : order) {
+        for (boolean noSni : order) {
             try {
-                TelephonyLog.log("Provisioning: " + str + ", режим " + (mode == 0 ? "IP без SNI" : "имя хоста (SNI)"));
-                JSONObject r = postPublic(str, jSONObject, mode == 0);
-                SipWebSocket.saveDirectMode(mode == 0 ? 0 : 1);
+                TelephonyLog.log("Provisioning: " + str + ", " + (noSni ? "IP без SNI" : "имя хоста (SNI)"));
+                JSONObject r = postPublic(str, jSONObject, noSni);
+                SipWebSocket.saveDirectMode(noSni ? 1 : 0);
                 return r;
             } catch (IllegalStateException e) {
-                SipWebSocket.saveDirectMode(mode == 0 ? 0 : 1);
+                SipWebSocket.saveDirectMode(noSni ? 1 : 0);
                 throw e;
             } catch (Exception e2) {
                 last = e2;
-                TelephonyLog.log("Provisioning: режим не подошёл: " + e2.getMessage());
+                TelephonyLog.log("Provisioning: не подошло: " + e2.getMessage());
             }
         }
         throw last == null ? new java.io.IOException("нет соединения") : last;
@@ -65,8 +65,7 @@ final class RingotelProvisioningClient {
         req.put("method", method);
         req.put("params", params);
         byte[] body = req.toString().getBytes(StandardCharsets.UTF_8);
-        javax.net.ssl.SSLContext ctx = javax.net.ssl.SSLContext.getInstance("TLS");
-        ctx.init(null, null, null);
+        javax.net.ssl.SSLContext ctx = RingotelTls.context();
         javax.net.ssl.SSLSocket socket = (javax.net.ssl.SSLSocket) ctx.getSocketFactory().createSocket();
         try {
             if (noSni) {

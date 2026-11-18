@@ -85,6 +85,15 @@ final class SipWebSocket {
         }
     }
 
+    static boolean hasSavedMode() {
+        try {
+            TelecomPlusApplication app = TelecomPlusApplication.instance;
+            return app != null && app.getSharedPreferences("telecom_plus_net", 0).contains(PREF);
+        } catch (Exception unused) {
+            return false;
+        }
+    }
+
     static void saveDirectMode(int mode) {
         try {
             TelecomPlusApplication app = TelecomPlusApplication.instance;
@@ -112,8 +121,7 @@ final class SipWebSocket {
     }
 
     void connect() throws Exception {
-        SSLContext sSLContext = SSLContext.getInstance("TLS");
-        sSLContext.init(null, null, null);
+        SSLContext sSLContext = RingotelTls.context();
         SSLSocket sSLSocket = (SSLSocket) sSLContext.getSocketFactory().createSocket();
         if (this.directIp != null) {
             String[] o = this.directIp.split("\\.");
@@ -134,7 +142,7 @@ final class SipWebSocket {
         byte[] keyBytes = new byte[16];
         this.random.nextBytes(keyBytes);
         String key = Base64.encodeToString(keyBytes, Base64.NO_WRAP);
-        String request = "GET " + this.path + " HTTP/1.1\r\nHost: " + (this.hostHeader != null ? this.hostHeader : this.host) + (this.port == 443 ? "" : ":" + this.port) + "\r\n"
+        String request = "GET " + this.path + " HTTP/1.1\r\nHost: " + (this.hostHeader != null ? this.hostHeader : this.host) + ":" + this.port + "\r\n"
                 + "Upgrade: websocket\r\nConnection: Upgrade\r\n"
                 + "Sec-WebSocket-Key: " + key + "\r\n"
                 + "Sec-WebSocket-Protocol: " + this.subProtocol + "\r\n"
