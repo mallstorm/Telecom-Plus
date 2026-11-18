@@ -203,6 +203,65 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
         }
     }
 
+    private static volatile boolean probed;
+
+    /** Однократная диагностика: перебираем варианты логина/режима и смотрим, какой принимает сервер. */
+    private void probeAuth(final JSONObject profile, final String termpass) {
+        if (probed) {
+            return;
+        }
+        probed = true;
+        final String termid = this.provisioning.terminalId();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String[] users = {termid, profile.optString("userid", ""), profile.optString("registration_identity", ""), android.text.TextUtils.join("", new String[]{})};
+                try {
+                    JSONObject info = profile.optJSONObject("info");
+                    if (info != null && info.optJSONArray("mobile") != null && info.optJSONArray("mobile").length() > 0) {
+                        users[3] = info.optJSONArray("mobile").getJSONObject(0).optString("value", "");
+                    }
+                } catch (Exception ignored) {
+                }
+                String[] uas = {"Ringotel", "null"};
+                for (int mode = 1; mode >= 0; mode--) {
+                    for (String ua : uas) {
+                        for (int i = 0; i < users.length; i++) {
+                            if (users[i].isEmpty()) {
+                                continue;
+                            }
+                            String tag = "probe[" + (mode == 1 ? "IP" : "SNI") + " ua=" + ua + " user#" + i + "]";
+                            SipWebSocket ws = new SipWebSocket("intertelecom.ringotel.net", 443, "json.api.smile-soft.com", ua, new SipWebSocket.Listener() {
+                                @Override
+                                public void onClosed(String str) {
+                                }
+
+                                @Override
+                                public void onText(String str) {
+                                }
+                            });
+                            try {
+                                ws.applyDirectMode(mode);
+                                ws.setBasicAuth(users[i], termpass);
+                                ws.connect();
+                                TelephonyLog.log(tag + " -> 101 OK");
+                            } catch (Exception e) {
+                                String m = String.valueOf(e.getMessage());
+                                int k = m.indexOf(" | ");
+                                TelephonyLog.log(tag + " -> " + (k > 0 ? m.substring(0, k) : m));
+                            } finally {
+                                try {
+                                    ws.close();
+                                } catch (Exception ignored) {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }, "probe-auth").start();
+    }
+
     @Override // ua.telecomplus.app.TelephonyEngine
     public TelephonyResult<Void> connect() {
         if (!this.snapshot.isProvisioned()) {
@@ -233,6 +292,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
                 } catch (NumberFormatException unused) {
                 }
             }
+            probeAuth(jSONObject, termpass);
             stopAgent();
             TelephonyLog.log("connect: server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
             try {
