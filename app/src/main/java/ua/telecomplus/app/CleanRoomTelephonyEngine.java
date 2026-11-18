@@ -235,6 +235,14 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             }
             stopAgent();
             TelephonyLog.log("connect: server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
+            try {
+                JSONObject dump = new JSONObject(jSONObject.toString());
+                if (dump.has("termpass")) {
+                    dump.put("termpass", "***(" + termpass.length() + ")");
+                }
+                TelephonyLog.log("профиль: " + dump);
+            } catch (Exception ignored) {
+            }
             final SipUserAgent ua = new SipUserAgent(this.context, host, port, this.provisioning.terminalId(), termpass, "Ringotel", new SipUserAgent.Events() {
                 @Override
                 public void onRegistration(boolean z, String str2, String str3) {

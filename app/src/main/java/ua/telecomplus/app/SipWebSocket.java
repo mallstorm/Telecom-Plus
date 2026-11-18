@@ -159,8 +159,24 @@ final class SipWebSocket {
             throw new RedirectException(statusLine, loc == null ? "" : loc);
         }
         if (!statusLine.contains(" 101")) {
+            String body = "";
+            try {
+                String cl = headerValue(head, "Content-Length");
+                int n = cl == null ? 0 : Math.min(400, Integer.parseInt(cl.trim()));
+                byte[] bb = new byte[n];
+                int got = 0;
+                while (got < n) {
+                    int r = this.in.read(bb, got, n - got);
+                    if (r < 0) {
+                        break;
+                    }
+                    got += r;
+                }
+                body = new String(bb, 0, got, StandardCharsets.UTF_8);
+            } catch (Exception ignored) {
+            }
             close();
-            throw new IOException("Сервер телефонии отклонил WebSocket: " + statusLine);
+            throw new IOException("Сервер телефонии отклонил WebSocket: " + statusLine + (head.length() > statusLine.length() ? " | " + head.substring(statusLine.length()).replace("\r\n", "; ").trim() : "") + (body.isEmpty() ? "" : " | " + body));
         }
         String expected = Base64.encodeToString(MessageDigest.getInstance("SHA-1").digest((key + GUID).getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
         String accept = headerValue(head, "Sec-WebSocket-Accept");

@@ -479,6 +479,9 @@ final class SipUserAgent implements SipWebSocket.Listener {
             return;
         }
         TelephonyLog.log("← " + firstLine(m) + (m.body.isEmpty() ? "" : " (SDP)"));
+        if (!m.isRequest && m.status >= 400 && m.cseqMethod().equals("REGISTER")) {
+            TelephonyLog.log("SIP-ответ: " + m.toString().replace("\r\n", "; "));
+        }
         try {
             synchronized (this.lock) {
                 if (m.isRequest) {
