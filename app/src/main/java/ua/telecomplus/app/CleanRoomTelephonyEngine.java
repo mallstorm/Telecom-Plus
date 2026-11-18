@@ -203,15 +203,15 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
         }
     }
 
-    private static volatile boolean probed;
+    private static volatile long probedAt;
 
     /** Однократная диагностика: перебираем варианты логина/режима и смотрим, какой принимает сервер. */
     private void probeAuth(final JSONObject profile, final String termpass) {
-        if (probed) {
+        if (System.currentTimeMillis() - probedAt < 120000L) {
             return;
         }
-        probed = true;
-        TelephonyLog.log("probe: старт (сборка diag-5)");
+        probedAt = System.currentTimeMillis();
+        TelephonyLog.pin("probe: старт (diag-6), логин/пароль перебираем");
         final String termid = this.provisioning.terminalId();
         new Thread(new Runnable() {
             @Override
@@ -253,11 +253,11 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
                                 ws.applyDirectMode(mode);
                                 ws.setBasicAuth(users[i], termpass);
                                 ws.connect();
-                                TelephonyLog.log(tag + " -> 101 OK");
+                                TelephonyLog.pin(tag + " -> 101 OK");
                             } catch (Exception e) {
                                 String m = String.valueOf(e.getMessage());
                                 int k = m.indexOf(" | ");
-                                TelephonyLog.log(tag + " -> " + (k > 0 ? m.substring(0, k) : m));
+                                TelephonyLog.pin(tag + " -> " + (k > 0 ? m.substring(0, k) : m));
                             } finally {
                                 try {
                                     ws.close();
@@ -303,7 +303,7 @@ final class CleanRoomTelephonyEngine implements TelephonyEngine {
             }
             probeAuth(jSONObject, termpass);
             stopAgent();
-            TelephonyLog.log("connect (diag-5): server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
+            TelephonyLog.log("connect (diag-6): server=" + host + ":" + port + " termid=" + this.provisioning.terminalId());
             try {
                 JSONObject dump = new JSONObject(jSONObject.toString());
                 if (dump.has("termpass")) {

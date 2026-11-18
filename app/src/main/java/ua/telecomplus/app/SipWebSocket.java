@@ -176,7 +176,7 @@ final class SipWebSocket {
             } catch (Exception ignored) {
             }
             close();
-            throw new IOException("Сервер телефонии отклонил WebSocket: " + statusLine + (head.length() > statusLine.length() ? " | " + head.substring(statusLine.length()).replace("\r\n", "; ").trim() : "") + (body.isEmpty() ? "" : " | " + body));
+            throw new IOException("Сервер телефонии отклонил WebSocket: " + statusLine + (body.isEmpty() ? "" : " | " + body));
         }
         String expected = Base64.encodeToString(MessageDigest.getInstance("SHA-1").digest((key + GUID).getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
         String accept = headerValue(head, "Sec-WebSocket-Accept");

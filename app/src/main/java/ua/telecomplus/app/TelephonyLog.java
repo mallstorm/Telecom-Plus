@@ -22,8 +22,26 @@ final class TelephonyLog {
         android.util.Log.d("TelecomPlus", str);
     }
 
+    private static final java.util.ArrayList<String> PINNED = new java.util.ArrayList<>();
+
+    /** Строка, которая не стирается кнопкой «Очистить» и показывается в начале журнала. */
+    static synchronized void pin(String str) {
+        if (PINNED.size() >= 60) {
+            PINNED.remove(0);
+        }
+        PINNED.add(FORMAT.format(new Date()) + "  " + str);
+        log(str);
+    }
+
     static synchronized String dump() {
         StringBuilder sb = new StringBuilder();
+        if (!PINNED.isEmpty()) {
+            sb.append("== проверка входа ==\n");
+            for (String line : PINNED) {
+                sb.append(line).append('\n');
+            }
+            sb.append("== журнал ==\n");
+        }
         for (String line : LINES) {
             sb.append(line).append('\n');
         }

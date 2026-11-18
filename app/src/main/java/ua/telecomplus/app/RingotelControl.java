@@ -113,7 +113,7 @@ final class RingotelControl implements SipWebSocket.Listener {
             } catch (InterruptedException unused) {
                 return;
             } catch (Exception e) {
-                TelephonyLog.log("Control: " + e);
+                TelephonyLog.log("Control: " + String.valueOf(e.getMessage()).split(" \\| ")[0]);
             }
             this.online = false;
             if (this.stopped) {
