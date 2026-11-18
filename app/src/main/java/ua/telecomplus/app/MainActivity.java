@@ -1232,6 +1232,13 @@ public final class MainActivity extends Activity {
                 Toast.makeText(this, "Нет доступа к контактам", 0).show();
             }
         }
+        if (i == 4715) {
+            String pending = this.pendingCallNumber;
+            this.pendingCallNumber = null;
+            if (pending != null) {
+                launchItPhoneCall(pending);
+            }
+        }
         if (i == 4711) {
             Runnable runnable = this.pendingMicAction;
             this.pendingMicAction = null;
@@ -1497,8 +1504,18 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams rp = cardMargin();
         renderRecents(parent);
         LinearLayout tools = row();
-        Button check = secondary("Проверить связь");
-        check.setOnClickListener(new defpackage.d(this, 11));
+        Button check = secondary("Открыть IT Phone");
+        check.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent launch = MainActivity.this.getPackageManager().getLaunchIntentForPackage(IT_PHONE_PACKAGE);
+                if (launch != null) {
+                    MainActivity.this.startActivity(launch);
+                } else {
+                    MainActivity.this.callViaItPhone("0");
+                }
+            }
+        });
         Button log = secondary("Журнал");
         log.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -3017,6 +3034,10 @@ public final class MainActivity extends Activity {
         if (telephonySnapshot0 == null) {
             telephonySnapshot0 = TelephonySnapshot.unprovisioned();
         }
+        if (telephonySnapshot0 != null) {
+            renderDialer(linearLayout, telephonySnapshot0);
+            return;
+        }
         final TelephonySnapshot telephonySnapshot = telephonySnapshot0;
         LinearLayout column = column();
         column.setPadding(dp(20), dp(20), dp(20), dp(20));
@@ -3507,26 +3528,72 @@ public final class MainActivity extends Activity {
         return new java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(new Date(j));
     }
 
+    private static final String IT_PHONE_PACKAGE = "smile.ringotel.it";
+    private String pendingCallNumber;
+
+    private boolean itPhoneInstalled() {
+        try {
+            getPackageManager().getPackageInfo(IT_PHONE_PACKAGE, 0);
+            return true;
+        } catch (Exception unused) {
+            return false;
+        }
+    }
+
     private void dialNumber(final String str) {
         this.chatNumber = null;
         this.selectedTab = 2;
-        withMicPermission(new Runnable() {
-            @Override
-            public void run() {
-                MainActivity.this.runTelephony(new Callable<TelephonyResult<Void>>() {
-                    @Override
-                    public TelephonyResult<Void> call() {
-                        return MainActivity.this.telephony.placeCall(str, false);
-                    }
-                }, new TelephonyCallback<Void>() {
-                    @Override
-                    public void accept(TelephonyResult<Void> telephonyResult) {
-                        MainActivity.this.showTelephonyResult(telephonyResult);
-                    }
-                });
-            }
-        });
+        callViaItPhone(str);
         showCabinet();
+    }
+
+    private void callViaItPhone(String raw) {
+        String num = raw == null ? "" : raw.trim().replaceAll("[^0-9+*#]", "");
+        if (num.isEmpty()) {
+            return;
+        }
+        if (!itPhoneInstalled()) {
+            new AlertDialog.Builder(this).setTitle("Нужен IT Phone").setMessage("Звонки выполняются через официальное приложение IT Phone. Установите его и войдите в свой профиль один раз.").setPositiveButton("Установить", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialogInterface, int i) {
+                    try {
+                        startActivity(new Intent("android.intent.action.VIEW", Uri.parse("market://details?id=" + IT_PHONE_PACKAGE)));
+                    } catch (Exception e) {
+                        startActivity(new Intent("android.intent.action.VIEW", Uri.parse("https://play.google.com/store/apps/details?id=" + IT_PHONE_PACKAGE)));
+                    }
+                }
+            }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
+            return;
+        }
+        boolean asked = getSharedPreferences("telecom_plus_net", 0).getBoolean("call_perm_asked", false);
+        if (checkSelfPermission("android.permission.CALL_PHONE") != 0 && !asked) {
+            getSharedPreferences("telecom_plus_net", 0).edit().putBoolean("call_perm_asked", true).apply();
+            this.pendingCallNumber = num;
+            requestPermissions(new String[]{"android.permission.CALL_PHONE"}, 4715);
+            return;
+        }
+        launchItPhoneCall(num);
+    }
+
+    private void launchItPhoneCall(String num) {
+        boolean canCall = checkSelfPermission("android.permission.CALL_PHONE") == 0;
+        try {
+            Intent intent = new Intent(canCall ? "android.intent.action.CALL" : "android.intent.action.DIAL", Uri.fromParts("tel", num, null));
+            intent.setPackage(IT_PHONE_PACKAGE);
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                Intent intent2 = new Intent("android.intent.action.DIAL", Uri.fromParts("tel", num, null));
+                intent2.setPackage(IT_PHONE_PACKAGE);
+                startActivity(intent2);
+            } catch (Exception e2) {
+                Intent launch = getPackageManager().getLaunchIntentForPackage(IT_PHONE_PACKAGE);
+                if (launch != null) {
+                    startActivity(launch);
+                    Toast.makeText(this, "Откройте набор в IT Phone и введите номер: " + num, 1).show();
+                }
+            }
+        }
     }
 
     private void openChat(String str) {
@@ -5331,6 +5398,9 @@ public final class MainActivity extends Activity {
     }
 
     private static String telephonyStatusTitle(TelephonySnapshot telephonySnapshot) {
+        if (telephonySnapshot == null || telephonySnapshot != null) {
+            return "Звонки через IT Phone";
+        }
         if (telephonySnapshot == null) {
             return "Не активирован";
         }
