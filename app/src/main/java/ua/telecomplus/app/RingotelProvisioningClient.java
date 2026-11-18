@@ -54,10 +54,19 @@ final class RingotelProvisioningClient {
         }
     }
 
+    private static boolean trustedRedirect(java.net.URI uri) {
+        String h = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+        return "https".equalsIgnoreCase(uri.getScheme()) && (h.equals("ringotel.net") || h.endsWith(".ringotel.net") || h.equals("ringotel.co") || h.endsWith(".ringotel.co") || h.endsWith(".ringotel.com") || h.endsWith(".ringotel.io"));
+    }
+
     private JSONObject commandWs(String str, JSONObject jSONObject) throws Exception {
+        return commandWsAt(str, jSONObject, HOST, 443, "/", 0);
+    }
+
+    private JSONObject commandWsAt(String str, JSONObject jSONObject, String host, int port, String path, int depth) throws Exception {
         final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         final String[] resp = {null};
-        SipWebSocket ws = new SipWebSocket(HOST, 443, "json.api.smile-soft.com", "Ringotel", new SipWebSocket.Listener() {
+        SipWebSocket ws = new SipWebSocket(host, port, "json.api.smile-soft.com", "Ringotel", new SipWebSocket.Listener() {
             @Override
             public void onClosed(String reason) {
                 latch.countDown();
@@ -72,8 +81,25 @@ final class RingotelProvisioningClient {
             }
         });
         try {
-            TelephonyLog.log("Provisioning WS: подключение, метод " + str);
-            ws.connect();
+            ws.setPath(path);
+            TelephonyLog.log("Provisioning WS: подключение " + host + ":" + port + path + ", метод " + str);
+            try {
+                ws.connect();
+            } catch (SipWebSocket.RedirectException re) {
+                TelephonyLog.log("Provisioning WS: редирект на " + re.location);
+                if (depth >= 4 || re.location.isEmpty()) {
+                    throw re;
+                }
+                java.net.URI target = new java.net.URI("https://" + host + ":" + port + path).resolve(re.location);
+                if (!trustedRedirect(target)) {
+                    throw new java.io.IOException("редирект на неизвестный хост " + target.getHost());
+                }
+                String np = target.getRawPath() == null || target.getRawPath().isEmpty() ? "/" : target.getRawPath();
+                if (target.getRawQuery() != null) {
+                    np = np + "?" + target.getRawQuery();
+                }
+                return commandWsAt(str, jSONObject, target.getHost(), target.getPort() > 0 ? target.getPort() : 443, np, depth + 1);
+            }
             JSONObject msg = new JSONObject();
             msg.put("method", str);
             msg.put("params", jSONObject);
@@ -99,6 +125,10 @@ final class RingotelProvisioningClient {
     }
 
     private JSONObject commandHttp(String str, JSONObject jSONObject) throws Exception {
+        return commandHttpAt(str, jSONObject, REGISTRATION_ENDPOINT, 0);
+    }
+
+    private JSONObject commandHttpAt(String str, JSONObject jSONObject, String endpoint, int depth) throws Exception {
         byte[] bArr;
         JSONObject jSONObject2 = new JSONObject();
         jSONObject2.put("method", str);
@@ -106,7 +136,7 @@ final class RingotelProvisioningClient {
         String jSONObject3 = jSONObject2.toString();
         Charset charset = StandardCharsets.UTF_8;
         byte[] bytes = jSONObject3.getBytes(charset);
-        HttpsURLConnection httpsURLConnection = (HttpsURLConnection) new URL(REGISTRATION_ENDPOINT).openConnection();
+        HttpsURLConnection httpsURLConnection = (HttpsURLConnection) new URL(endpoint).openConnection();
         httpsURLConnection.setHostnameVerifier(RingotelHostnameVerifier.INSTANCE);
         httpsURLConnection.setConnectTimeout(15000);
         httpsURLConnection.setReadTimeout(25000);
@@ -124,6 +154,17 @@ final class RingotelProvisioningClient {
                 outputStream.write(bytes);
                 outputStream.close();
                 int responseCode = httpsURLConnection.getResponseCode();
+                if (responseCode >= 301 && responseCode <= 308 && responseCode != 304) {
+                    String loc = httpsURLConnection.getHeaderField("Location");
+                    TelephonyLog.log("Provisioning HTTP: редирект " + responseCode + " на " + loc);
+                    if (loc != null && depth < 4) {
+                        java.net.URI target = new java.net.URI(endpoint).resolve(loc);
+                        if (trustedRedirect(target)) {
+                            httpsURLConnection.disconnect();
+                            return commandHttpAt(str, jSONObject, target.toString(), depth + 1);
+                        }
+                    }
+                }
                 InputStream errorStream = (responseCode < 200 || responseCode >= 400) ? httpsURLConnection.getErrorStream() : httpsURLConnection.getInputStream();
                 if (errorStream == null) {
                     bArr = new byte[0];

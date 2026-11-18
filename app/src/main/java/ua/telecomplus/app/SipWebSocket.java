@@ -42,6 +42,21 @@ final class SipWebSocket {
         this.listener = listener;
     }
 
+    static final class RedirectException extends IOException {
+        final String location;
+
+        RedirectException(String status, String location) {
+            super("Сервер телефонии перенаправил: " + status + " -> " + location);
+            this.location = location;
+        }
+    }
+
+    private String path = "/";
+
+    void setPath(String str) {
+        this.path = (str == null || str.isEmpty()) ? "/" : str;
+    }
+
     void setBasicAuth(String str, String str2) {
         this.basicUser = str;
         this.basicPass = str2;
@@ -64,7 +79,7 @@ final class SipWebSocket {
         byte[] keyBytes = new byte[16];
         this.random.nextBytes(keyBytes);
         String key = Base64.encodeToString(keyBytes, Base64.NO_WRAP);
-        String request = "GET / HTTP/1.1\r\nHost: " + this.host + (this.port == 443 ? "" : ":" + this.port) + "\r\n"
+        String request = "GET " + this.path + " HTTP/1.1\r\nHost: " + this.host + (this.port == 443 ? "" : ":" + this.port) + "\r\n"
                 + "Upgrade: websocket\r\nConnection: Upgrade\r\n"
                 + "Sec-WebSocket-Key: " + key + "\r\n"
                 + "Sec-WebSocket-Protocol: " + this.subProtocol + "\r\n"
@@ -75,6 +90,11 @@ final class SipWebSocket {
         this.out.flush();
         String head = readHttpHead();
         String statusLine = head.split("\r\n", 2)[0];
+        if (statusLine.contains(" 30")) {
+            String loc = headerValue(head, "Location");
+            close();
+            throw new RedirectException(statusLine, loc == null ? "" : loc);
+        }
         if (!statusLine.contains(" 101")) {
             close();
             throw new IOException("Сервер телефонии отклонил WebSocket: " + statusLine);
