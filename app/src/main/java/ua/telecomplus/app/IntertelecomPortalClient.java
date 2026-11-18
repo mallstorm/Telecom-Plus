@@ -251,6 +251,33 @@ final class IntertelecomPortalClient implements SubscriberPortalGateway {
         }
     }
 
+    private static final java.util.regex.Pattern CF_EMAIL = java.util.regex.Pattern.compile("(?is)<(a|span)\\b[^>]*data-cfemail=\"([0-9a-fA-F]+)\"[^>]*>.*?</\\1>");
+
+    static String decodeCfEmails(String html) {
+        if (html == null || !html.contains("data-cfemail")) {
+            return html;
+        }
+        java.util.regex.Matcher m = CF_EMAIL.matcher(html);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String hex = m.group(2);
+            String rep;
+            try {
+                int key = Integer.parseInt(hex.substring(0, 2), 16);
+                StringBuilder out = new StringBuilder();
+                for (int i = 2; i + 1 < hex.length(); i += 2) {
+                    out.append((char) (Integer.parseInt(hex.substring(i, i + 2), 16) ^ key));
+                }
+                rep = out.toString();
+            } catch (Exception e) {
+                rep = m.group();
+            }
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(rep));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
     private static byte[] readAll(InputStream inputStream) throws IOException {
         try {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -378,7 +405,7 @@ final class IntertelecomPortalClient implements SubscriberPortalGateway {
             } catch (Exception unused) {
                 text = new String(data, StandardCharsets.UTF_8);
             }
-            return new Response(responseCode, text, url.toString(), conn.getHeaderField("Location"), null);
+            return new Response(responseCode, decodeCfEmails(text), url.toString(), conn.getHeaderField("Location"), null);
         } catch (Exception e) {
             String finalUrl = url == null ? "https://services.intertelecom.ua" + nz(str2) : url.toString();
             return new Response(-1, "", finalUrl, null, e);

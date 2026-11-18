@@ -10,8 +10,8 @@ android {
         applicationId = "ua.telecomplus.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 50
-        versionName = "0.5.0-phone"
+        versionCode = 60
+        versionName = "1.0.0"
     }
 
     signingConfigs {
@@ -21,12 +21,6 @@ android {
             keyAlias = "telecomplus"
             keyPassword = "tpstore2026"
         }
-    }
-
-    flavorDimensions += "mode"
-    productFlavors {
-        create("full") { dimension = "mode" }
-        create("safe") { dimension = "mode" }
     }
 
     buildFeatures {

@@ -37,15 +37,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <service
-            android:label="Автоподстановка кода IT Phone"
-            android:name="ua.telecomplus.app.OtpCallCaptureService"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService"/>
-            </intent-filter>
-        </service>
             <service
             android:name="ua.telecomplus.app.TelephonyService"
             android:exported="false"

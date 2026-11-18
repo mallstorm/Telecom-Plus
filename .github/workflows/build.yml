@@ -21,12 +21,11 @@ jobs:
         with:
           gradle-version: "8.14.3"
       - name: Build release APKs (fixed signing key)
-        run: gradle --no-daemon :app:assembleFullRelease :app:assembleSafeRelease
+        run: gradle --no-daemon :app:assembleRelease
       - name: Collect APKs
         run: |
           mkdir out
-          cp app/build/outputs/apk/full/release/*.apk out/Telecom-Plus.apk
-          cp app/build/outputs/apk/safe/release/*.apk out/Telecom-Plus-safe.apk
+          cp app/build/outputs/apk/release/*.apk out/Telecom-Plus.apk
       - uses: actions/upload-artifact@v4
         with:
           name: telecom-plus
@@ -37,4 +36,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest-apk --yes --cleanup-tag || true
-          gh release create latest-apk out/Telecom-Plus.apk out/Telecom-Plus-safe.apk --title "Telecom+ (последняя сборка)" --notes "Release APK (постоянная подпись), коммит ${GITHUB_SHA::7}" --target "$GITHUB_SHA" --prerelease
+          gh release create latest-apk out/Telecom-Plus.apk --title "Telecom+ (последняя сборка)" --notes "Release APK (постоянная подпись), коммит ${GITHUB_SHA::7}" --target "$GITHUB_SHA" --prerelease

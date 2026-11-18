@@ -94,21 +94,22 @@ public final class MainActivity extends Activity {
     private boolean startupCompleted;
     private TelephonyEngine telephony;
     private PortalWebAuthBridge webAuth;
-    private static final int BLUE = Color.rgb(22, 101, 216);
-    private static final int BLUE_DARK = Color.rgb(8, 47, 106);
-    private static final int CYAN = Color.rgb(14, 177, 202);
-    private static final int PURPLE = Color.rgb(105, 82, 218);
-    private static final int ORANGE = Color.rgb(245, 139, 49);
-    private static final int BG = Color.rgb(243, 246, 252);
-    private static final int TEXT = Color.rgb(35, 43, 54);
-    private static final int MUTED = Color.rgb(105, 116, 130);
-    private static final int GREEN = Color.rgb(39, 155, 83);
-    private static final int RED = Color.rgb(190, 45, 45);
-    private static final int BORDER = Color.rgb(219, 226, 237);
-    private static final int SOFT_BLUE = Color.rgb(232, 242, 255);
-    private static final int SOFT_CYAN = Color.rgb(228, 248, 250);
-    private static final int SOFT_PURPLE = Color.rgb(239, 235, 255);
-    private static final int SOFT_ORANGE = Color.rgb(255, 243, 229);
+    private static final int BLUE = Color.rgb(21, 101, 216);
+    private static final int BLUE_DARK = Color.rgb(10, 42, 102);
+    private static final int YELLOW = Color.rgb(255, 200, 30);
+    private static final int CYAN = Color.rgb(38, 132, 235);
+    private static final int PURPLE = Color.rgb(63, 81, 181);
+    private static final int ORANGE = Color.rgb(245, 166, 35);
+    private static final int BG = Color.rgb(243, 247, 253);
+    private static final int TEXT = Color.rgb(24, 36, 56);
+    private static final int MUTED = Color.rgb(100, 114, 138);
+    private static final int GREEN = Color.rgb(34, 160, 90);
+    private static final int RED = Color.rgb(210, 52, 56);
+    private static final int BORDER = Color.rgb(222, 230, 242);
+    private static final int SOFT_BLUE = Color.rgb(228, 239, 255);
+    private static final int SOFT_CYAN = Color.rgb(226, 240, 255);
+    private static final int SOFT_PURPLE = Color.rgb(232, 238, 252);
+    private static final int SOFT_ORANGE = Color.rgb(255, 245, 210);
     private static final int AMBER_BG = Color.rgb(255, 248, 224);
     private TelephonySnapshot telephonySnapshot = TelephonySnapshot.unprovisioned();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -275,28 +276,34 @@ public final class MainActivity extends Activity {
     private View bottomNav() {
         LinearLayout row = row();
         row.setBackgroundColor(-1);
-        row.setPadding(dp(5), dp(5), dp(5), dp(5));
-        String[] names = {"Кабинет", "Звонки", "Контакты", "Чаты", "Ещё"};
-        String[] icons = {"⌂", "☎", "☺", "✉", "☰"};
+        row.setElevation(dp(10));
+        row.setPadding(dp(6), dp(8), dp(6), dp(8));
+        String[] names = {"Кабинет", "Звонки", "Контакты", "Чаты", "Профиль"};
+        int[] icons = {R.drawable.ic_home, R.drawable.ic_dialpad, R.drawable.ic_contacts, R.drawable.ic_chat, R.drawable.ic_user};
         final int[] tabs = {0, 2, 5, 6, 4};
         int unread = phoneData().unreadTotal();
         for (int i = 0; i < 5; i++) {
             final int tab = tabs[i];
             boolean active = this.selectedTab == tab || (tab == 0 && (this.selectedTab == 1 || this.selectedTab == 3));
             LinearLayout column = column();
-            column.setGravity(17);
-            column.setPadding(dp(2), dp(3), dp(2), dp(3));
-            TextView icon = label(icons[i], 22, active ? -1 : MUTED, true);
-            icon.setGravity(17);
-            column.addView(icon, matchWrap());
-            String caption = names[i];
+            column.setGravity(1);
+            FrameLayout pill = new FrameLayout(this);
+            pill.setBackground(active ? rounded(YELLOW, 16, 0, 0) : null);
+            pill.addView(new Ico.PlainView(this, Ico.get(this, icons[i], active ? BLUE_DARK : MUTED), 0.78f), new FrameLayout.LayoutParams(dp(60), dp(32)));
             if (tab == 6 && unread > 0) {
-                caption = names[i] + " (" + unread + ")";
+                TextView badge = label(unread > 9 ? "9+" : Integer.toString(unread), 10, -1, true);
+                badge.setGravity(17);
+                badge.setBackground(rounded(RED, 9, 0, 0));
+                FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(18), dp(18));
+                bp.leftMargin = dp(34);
+                bp.topMargin = dp(-2);
+                pill.addView(badge, bp);
             }
-            TextView text = label(caption, 10, active ? -1 : MUTED, active);
+            column.addView(pill, new LinearLayout.LayoutParams(dp(60), dp(32)));
+            TextView text = label(names[i], 11, active ? BLUE_DARK : MUTED, active);
             text.setGravity(17);
+            text.setPadding(0, dp(3), 0, 0);
             column.addView(text, matchWrap());
-            column.setBackground(active ? gradient(BLUE, CYAN, 16) : null);
             column.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
@@ -305,9 +312,7 @@ public final class MainActivity extends Activity {
                     MainActivity.this.showCabinet();
                 }
             });
-            LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(0, -1, 1.0f);
-            layoutParams.setMargins(dp(2), dp(2), dp(2), dp(2));
-            row.addView(column, layoutParams);
+            row.addView(column, new LinearLayout.LayoutParams(0, -2, 1.0f));
         }
         return row;
     }
@@ -319,7 +324,7 @@ public final class MainActivity extends Activity {
         button.setTextColor(i);
         button.setAllCaps(false);
         button.setGravity(17);
-        button.setBackground(rounded(i2, 12, i2 == 0 ? 0 : BORDER, i2 == 0 ? 0 : 1));
+        button.setBackground(rounded(i2, 16, i2 == 0 ? 0 : BORDER, i2 == 0 ? 0 : 1));
         button.setMinHeight(0);
         button.setMinimumHeight(0);
         return button;
@@ -350,7 +355,7 @@ public final class MainActivity extends Activity {
     private LinearLayout card() {
         LinearLayout column = column();
         column.setPadding(dp(20), dp(18), dp(20), dp(18));
-        column.setBackground(rounded(-1, 18, BORDER, 1));
+        column.setBackground(rounded(-1, 22, BORDER, 1));
         column.setElevation(dp(1));
         return column;
     }
@@ -374,7 +379,13 @@ public final class MainActivity extends Activity {
     }
 
     private TextView circleIcon(String str, int i, int i2, int i3) {
-        TextView label = label(str, Math.max(12, i3 / 3), i, true);
+        int res = Ico.res(str);
+        TextView label;
+        if (res != 0) {
+            label = new Ico.CircleView(this, Ico.get(this, res, i));
+        } else {
+            label = label(str, Math.max(12, i3 / 3), i, true);
+        }
         label.setGravity(17);
         label.setBackground(rounded(i2, i3, 0, 0));
         return label;
@@ -482,7 +493,23 @@ public final class MainActivity extends Activity {
         return str == null ? "" : str.replaceAll("\\D+", "");
     }
 
+    private static String leakedLabel(String str) {
+        if (str == null) {
+            return null;
+        }
+        String t = str.trim();
+        while (t.startsWith(":")) {
+            t = t.substring(1).trim();
+        }
+        String lc = t.toLowerCase(Locale.ROOT);
+        if (lc.contains("данные абонента") || lc.contains("дані абонента") || lc.contains("движение средств") || lc.contains("рух коштів")) {
+            return "";
+        }
+        return t;
+    }
+
     private static String displayValue(String str) {
+        str = leakedLabel(str);
         return (str == null || str.trim().isEmpty() || "—".equals(str.trim())) ? "Не указано" : str.trim();
     }
 
@@ -628,7 +655,7 @@ public final class MainActivity extends Activity {
     private Button historyModeButton(String str, int i) {
         int i2 = 1;
         int i3 = this.historyMode == i ? 1 : 0;
-        Button button = button(str, i3 != 0 ? -1 : BLUE_DARK, i3 != 0 ? i == 0 ? BLUE : ORANGE : 0);
+        Button button = button(str, i3 != 0 ? BLUE_DARK : MUTED, i3 != 0 ? YELLOW : 0);
         button.setTypeface(Typeface.DEFAULT, i3);
         button.setOnClickListener(new defpackage.f(this, i, i2));
         return button;
@@ -1252,34 +1279,301 @@ public final class MainActivity extends Activity {
         }).setNegativeButton("Закрыть", (DialogInterface.OnClickListener) null).show();
     }
 
+    private final StringBuilder dialBuf = new StringBuilder();
+    private TextView dialDisplay;
+    private boolean callPadShown;
+    private android.media.ToneGenerator toneGen;
+
+    private static final String[] KEY_LABELS = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"};
+    private static final String[] KEY_LETTERS = {"", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", ""};
+
+    private void keyTone(char c) {
+        try {
+            if (this.toneGen == null) {
+                this.toneGen = new android.media.ToneGenerator(android.media.AudioManager.STREAM_DTMF, 60);
+            }
+            int t = c == '*' ? android.media.ToneGenerator.TONE_DTMF_S : c == '#' ? android.media.ToneGenerator.TONE_DTMF_P : android.media.ToneGenerator.TONE_DTMF_0 + (c - '0');
+            this.toneGen.startTone(t, 90);
+        } catch (Exception unused) {
+        }
+    }
+
+    private View keypadKey(final int index, int size, boolean dark, final View.OnClickListener extra) {
+        final String digit = KEY_LABELS[index];
+        LinearLayout key = column();
+        key.setGravity(17);
+        key.setBackground(rounded(dark ? Color.argb(36, 255, 255, 255) : Color.rgb(238, 244, 254), size / 2, 0, 0));
+        TextView d = label(digit, 28, dark ? -1 : BLUE_DARK, false);
+        d.setGravity(17);
+        key.addView(d, wrap());
+        String letters = KEY_LETTERS[index];
+        if (!letters.isEmpty()) {
+            TextView l = label(letters, 9, dark ? Color.rgb(190, 212, 250) : MUTED, true);
+            l.setGravity(17);
+            l.setLetterSpacing(0.12f);
+            key.addView(l, wrap());
+        }
+        key.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                view.performHapticFeedback(3);
+                keyTone(digit.charAt(0));
+                extra.onClick(view);
+            }
+        });
+        if ("0".equals(digit)) {
+            key.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View view) {
+                    view.performHapticFeedback(0);
+                    if (extra instanceof PlusAware) {
+                        ((PlusAware) extra).plus();
+                    }
+                    return true;
+                }
+            });
+        }
+        return key;
+    }
+
+    private abstract static class PlusAware implements View.OnClickListener {
+        abstract void plus();
+    }
+
+    private View keypadGrid(int size, boolean dark, java.util.function.Consumer<String> onKey, Runnable onPlus) {
+        LinearLayout grid = column();
+        grid.setGravity(1);
+        for (int r = 0; r < 4; r++) {
+            LinearLayout kr = row();
+            kr.setGravity(17);
+            for (int c = 0; c < 3; c++) {
+                final int idx = r * 3 + c;
+                final String digit = KEY_LABELS[idx];
+                final Runnable plus = onPlus;
+                final java.util.function.Consumer<String> cb = onKey;
+                View key = keypadKey(idx, size, dark, new PlusAware() {
+                    @Override
+                    public void onClick(View view) {
+                        cb.accept(digit);
+                    }
+
+                    @Override
+                    void plus() {
+                        if (plus != null) {
+                            plus.run();
+                        }
+                    }
+                });
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(size), dp(size));
+                lp.setMargins(dp(10), dp(6), dp(10), dp(6));
+                kr.addView(key, lp);
+            }
+            grid.addView(kr, matchWrap());
+        }
+        return grid;
+    }
+
+    private void refreshDial() {
+        if (this.dialDisplay == null) {
+            return;
+        }
+        String t = this.dialBuf.toString();
+        this.dialDisplay.setText(t.isEmpty() ? "Введите номер" : t);
+        this.dialDisplay.setTextColor(t.isEmpty() ? Color.rgb(160, 172, 192) : BLUE_DARK);
+        this.dialDisplay.setTextSize(t.length() <= 11 ? 34.0f : t.length() <= 15 ? 28.0f : 22.0f);
+    }
+
+    private TextView roundIconButton(int iconRes, int iconColor, int bg, int size) {
+        TextView v = new Ico.CircleView(this, Ico.get(this, iconRes, iconColor));
+        v.setBackground(rounded(bg, size / 2, 0, 0));
+        return v;
+    }
+
+    private void renderDialer(LinearLayout parent, final TelephonySnapshot snap) {
+        this.dialBuf.setLength(0);
+        LinearLayout card = column();
+        card.setGravity(1);
+        card.setPadding(dp(10), dp(16), dp(10), dp(18));
+        card.setBackground(rounded(-1, 28, BORDER, 1));
+        card.setElevation(dp(1));
+        String st = telephonyStatusTitle(snap);
+        TextView status = chip("●  " + st, GREEN, Color.rgb(226, 246, 235));
+        card.addView(status, wrap());
+        this.dialDisplay = label("Введите номер", 34, Color.rgb(160, 172, 192), true);
+        this.dialDisplay.setGravity(17);
+        this.dialDisplay.setSingleLine(true);
+        this.dialDisplay.setPadding(dp(8), dp(14), dp(8), dp(10));
+        this.dialDisplay.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View view) {
+                try {
+                    android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                        CharSequence cs = cm.getPrimaryClip().getItemAt(0).getText();
+                        String pasted = cs == null ? "" : cs.toString().replaceAll("[^0-9+*#]", "");
+                        MainActivity.this.dialBuf.setLength(0);
+                        MainActivity.this.dialBuf.append(pasted);
+                        MainActivity.this.refreshDial();
+                    }
+                } catch (Exception unused) {
+                }
+                return true;
+            }
+        });
+        card.addView(this.dialDisplay, matchWrap());
+        card.addView(keypadGrid(74, false, new java.util.function.Consumer<String>() {
+            @Override
+            public void accept(String d) {
+                if (MainActivity.this.dialBuf.length() < 20) {
+                    MainActivity.this.dialBuf.append(d);
+                    MainActivity.this.refreshDial();
+                }
+            }
+        }, new Runnable() {
+            @Override
+            public void run() {
+                if (MainActivity.this.dialBuf.length() == 0) {
+                    MainActivity.this.dialBuf.append('+');
+                    MainActivity.this.refreshDial();
+                } else {
+                    MainActivity.this.dialBuf.setLength(MainActivity.this.dialBuf.length() - 1);
+                    MainActivity.this.dialBuf.append('+');
+                    MainActivity.this.refreshDial();
+                }
+            }
+        }), matchWrap());
+        LinearLayout bottom = row();
+        bottom.setGravity(17);
+        View spacer = new View(this);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(74), dp(74));
+        sp.setMargins(dp(10), dp(8), dp(10), dp(4));
+        bottom.addView(spacer, sp);
+        TextView callBtn = roundIconButton(R.drawable.ic_phone, -1, GREEN, 74);
+        callBtn.setElevation(dp(4));
+        callBtn.setContentDescription("Позвонить");
+        callBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String number = MainActivity.this.dialBuf.toString();
+                if (number.isEmpty()) {
+                    java.util.List<PhoneData.CallEntry> calls = MainActivity.this.phoneData().calls();
+                    if (!calls.isEmpty()) {
+                        MainActivity.this.dialBuf.append(calls.get(0).number);
+                        MainActivity.this.refreshDial();
+                    } else {
+                        Toast.makeText(MainActivity.this, "Введите номер", 0).show();
+                    }
+                    return;
+                }
+                MainActivity.this.dialNumber(number);
+            }
+        });
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(74), dp(74));
+        cp.setMargins(dp(10), dp(8), dp(10), dp(4));
+        bottom.addView(callBtn, cp);
+        TextView back = roundIconButton(R.drawable.ic_backspace, MUTED, Color.TRANSPARENT, 74);
+        back.setContentDescription("Стереть");
+        back.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (MainActivity.this.dialBuf.length() > 0) {
+                    MainActivity.this.dialBuf.setLength(MainActivity.this.dialBuf.length() - 1);
+                    MainActivity.this.refreshDial();
+                }
+            }
+        });
+        back.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View view) {
+                MainActivity.this.dialBuf.setLength(0);
+                MainActivity.this.refreshDial();
+                return true;
+            }
+        });
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(74), dp(74));
+        bp.setMargins(dp(10), dp(8), dp(10), dp(4));
+        bottom.addView(back, bp);
+        card.addView(bottom, matchWrap());
+        parent.addView(card, matchWrap());
+        LinearLayout.LayoutParams rp = cardMargin();
+        renderRecents(parent);
+        LinearLayout tools = row();
+        Button check = secondary("Проверить связь");
+        check.setOnClickListener(new defpackage.d(this, 11));
+        Button log = secondary("Журнал");
+        log.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                MainActivity.this.showTelephonyLog();
+            }
+        });
+        tools.addView(check, new LinearLayout.LayoutParams(0, dp(46), 1.0f));
+        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(0, dp(46), 1.0f);
+        lp2.leftMargin = dp(10);
+        tools.addView(log, lp2);
+        parent.addView(tools, cardMargin());
+    }
+
+    private View callAction(int iconRes, String caption, boolean on, View.OnClickListener l) {
+        LinearLayout col = column();
+        col.setGravity(1);
+        TextView c = roundIconButton(iconRes, on ? BLUE_DARK : -1, on ? -1 : Color.argb(40, 255, 255, 255), 68);
+        col.addView(c, new LinearLayout.LayoutParams(dp(68), dp(68)));
+        TextView t = label(caption, 12, Color.rgb(205, 224, 255), false);
+        t.setGravity(17);
+        t.setPadding(0, dp(6), 0, 0);
+        col.addView(t, matchWrap());
+        col.setOnClickListener(l);
+        return col;
+    }
+
+    private void doTelephony(final Callable<TelephonyResult<Void>> action) {
+        telephonyAction(action);
+    }
+
     private void renderCallPanel(LinearLayout linearLayout, final TelephonySnapshot telephonySnapshot) {
         final boolean ringingIn = this.telephony.incomingRinging();
-        LinearLayout card = card();
-        TextView who = label(telephonySnapshot.remoteNumber.isEmpty() ? "Вызов" : formatInternationalPhone(telephonySnapshot.remoteNumber), 26, BLUE_DARK, true);
+        LinearLayout screen = column();
+        screen.setGravity(1);
+        screen.setMinimumHeight(getResources().getDisplayMetrics().heightPixels - dp(40));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{BLUE_DARK, Color.rgb(14, 70, 160)});
+        screen.setBackground(bg);
+        screen.setPadding(dp(20), dp(48), dp(20), dp(36));
+        String number = telephonySnapshot.remoteNumber == null ? "" : telephonySnapshot.remoteNumber;
+        TextView head = label(ringingIn ? "Входящий вызов" : "Telecom+", 14, Color.rgb(200, 222, 255), false);
+        head.setGravity(17);
+        screen.addView(head, matchWrap());
+        View av = avatar(number, 112);
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(112), dp(112));
+        avp.topMargin = dp(28);
+        screen.addView(av, avp);
+        TextView who = label(number.isEmpty() ? "Вызов" : formatInternationalPhone(number), 30, -1, true);
         who.setGravity(17);
-        card.addView(who, matchWrap());
-        TextView state = label(ringingIn ? "Входящий вызов" : telephonySnapshot.statusMessage, 14, MUTED, false);
+        who.setPadding(0, dp(20), 0, dp(4));
+        screen.addView(who, matchWrap());
+        TextView state = label(ringingIn ? "Звонит…" : telephonySnapshot.statusMessage, 15, Color.rgb(200, 222, 255), false);
         state.setGravity(17);
-        card.addView(state, matchWrap());
+        screen.addView(state, matchWrap());
         if (telephonySnapshot.callState == TelecomCallState.ACTIVE || telephonySnapshot.callState == TelecomCallState.HELD) {
             android.widget.Chronometer chronometer = new android.widget.Chronometer(this);
-            chronometer.setTextSize(22.0f);
-            chronometer.setTextColor(GREEN);
+            chronometer.setTextSize(24.0f);
+            chronometer.setTextColor(YELLOW);
             chronometer.setGravity(17);
             chronometer.setBase(android.os.SystemClock.elapsedRealtime() - Math.max(0L, System.currentTimeMillis() - telephonySnapshot.callStartedAt));
             chronometer.start();
-            LinearLayout.LayoutParams layoutParams = matchWrap();
-            layoutParams.topMargin = dp(8);
-            card.addView(chronometer, layoutParams);
+            LinearLayout.LayoutParams chp = matchWrap();
+            chp.topMargin = dp(10);
+            screen.addView(chronometer, chp);
         }
+        View filler = new View(this);
+        screen.addView(filler, new LinearLayout.LayoutParams(1, 0, 1.0f));
         if (ringingIn) {
             LinearLayout row = row();
-            Button decline = button("Отклонить", -1, Color.rgb(214, 62, 62));
-            decline.setTypeface(Typeface.DEFAULT, 1);
-            decline.setOnClickListener(new View.OnClickListener() {
+            row.setGravity(17);
+            View decline = callAction(R.drawable.ic_call_end, "Отклонить", false, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                    MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
                         @Override
                         public TelephonyResult<Void> call() {
                             return MainActivity.this.telephony.hangup();
@@ -1287,15 +1581,14 @@ public final class MainActivity extends Activity {
                     });
                 }
             });
-            Button accept = button("Ответить", -1, GREEN);
-            accept.setTypeface(Typeface.DEFAULT, 1);
-            accept.setOnClickListener(new View.OnClickListener() {
+            ((TextView) ((LinearLayout) decline).getChildAt(0)).setBackground(rounded(RED, 34, 0, 0));
+            View accept = callAction(R.drawable.ic_phone, "Ответить", false, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     MainActivity.this.withMicPermission(new Runnable() {
                         @Override
                         public void run() {
-                            MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                            MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
                                 @Override
                                 public TelephonyResult<Void> call() {
                                     return MainActivity.this.telephony.answer();
@@ -1305,103 +1598,96 @@ public final class MainActivity extends Activity {
                     });
                 }
             });
-            LinearLayout.LayoutParams l1 = new LinearLayout.LayoutParams(0, dp(56), 1.0f);
-            LinearLayout.LayoutParams l2 = new LinearLayout.LayoutParams(0, dp(56), 1.0f);
-            l2.leftMargin = dp(10);
+            ((TextView) ((LinearLayout) accept).getChildAt(0)).setBackground(rounded(GREEN, 34, 0, 0));
+            LinearLayout.LayoutParams l1 = new LinearLayout.LayoutParams(0, -2, 1.0f);
             row.addView(decline, l1);
-            row.addView(accept, l2);
-            LinearLayout.LayoutParams rp = matchWrap();
-            rp.topMargin = dp(18);
-            card.addView(row, rp);
-            linearLayout.addView(card, cardMargin());
+            row.addView(accept, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            screen.addView(row, matchWrap());
+            linearLayout.addView(screen, new LinearLayout.LayoutParams(-1, -2));
             return;
         }
-        LinearLayout toggles = row();
-        Button mute = button(telephonySnapshot.muted ? "🔇 Микрофон выкл" : "🎤 Микрофон", BLUE_DARK, Color.rgb(242, 247, 253));
-        mute.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                final boolean target = !telephonySnapshot.muted;
-                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
-                    @Override
-                    public TelephonyResult<Void> call() {
-                        return MainActivity.this.telephony.setMuted(target);
-                    }
-                });
-            }
-        });
-        final boolean speaker = telephonySnapshot.audioRoute == AudioRoute.SPEAKER;
-        Button spk = button(speaker ? "🔊 Динамик вкл" : "🔈 Динамик", BLUE_DARK, Color.rgb(242, 247, 253));
-        spk.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
-                    @Override
-                    public TelephonyResult<Void> call() {
-                        return MainActivity.this.telephony.setAudioRoute(speaker ? AudioRoute.EARPIECE : AudioRoute.SPEAKER);
-                    }
-                });
-            }
-        });
-        Button hold = button(telephonySnapshot.held ? "▶ Снять" : "⏸ Удержание", BLUE_DARK, Color.rgb(242, 247, 253));
-        hold.setEnabled(telephonySnapshot.callState == TelecomCallState.ACTIVE || telephonySnapshot.callState == TelecomCallState.HELD);
-        hold.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                final boolean target = !telephonySnapshot.held;
-                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
-                    @Override
-                    public TelephonyResult<Void> call() {
-                        return MainActivity.this.telephony.setHeld(target);
-                    }
-                });
-            }
-        });
-        for (Button b : new Button[]{mute, spk, hold}) {
-            b.setTextSize(12.0f);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(50), 1.0f);
-            if (b != mute) {
-                lp.leftMargin = dp(8);
-            }
-            toggles.addView(b, lp);
-        }
-        LinearLayout.LayoutParams tp = matchWrap();
-        tp.topMargin = dp(16);
-        card.addView(toggles, tp);
-        String[][] keys = {new String[]{"1", "2", "3"}, new String[]{"4", "5", "6"}, new String[]{"7", "8", "9"}, new String[]{"*", "0", "#"}};
-        for (String[] keyRow : keys) {
-            LinearLayout kr = row();
-            LinearLayout.LayoutParams krp = matchWrap();
-            krp.topMargin = dp(8);
-            for (int j = 0; j < keyRow.length; j++) {
-                final String key = keyRow[j];
-                Button kb = button(key, BLUE_DARK, Color.rgb(242, 247, 253));
-                kb.setTextSize(22.0f);
-                kb.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
-                            @Override
-                            public TelephonyResult<Void> call() {
-                                return MainActivity.this.telephony.sendDtmf(key.charAt(0));
-                            }
-                        });
-                    }
-                });
-                LinearLayout.LayoutParams klp = new LinearLayout.LayoutParams(0, dp(50), 1.0f);
-                if (j > 0) {
-                    klp.leftMargin = dp(8);
+        if (this.callPadShown) {
+            screen.addView(keypadGrid(66, true, new java.util.function.Consumer<String>() {
+                @Override
+                public void accept(final String key) {
+                    MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
+                        @Override
+                        public TelephonyResult<Void> call() {
+                            return MainActivity.this.telephony.sendDtmf(key.charAt(0));
+                        }
+                    });
                 }
-                kr.addView(kb, klp);
-            }
-            card.addView(kr, krp);
+            }, null), matchWrap());
+        } else {
+            LinearLayout r1 = row();
+            r1.setGravity(17);
+            final boolean speaker = telephonySnapshot.audioRoute == AudioRoute.SPEAKER;
+            View mute = callAction(telephonySnapshot.muted ? R.drawable.ic_mic_off : R.drawable.ic_mic, "Микрофон", telephonySnapshot.muted, new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    final boolean target = !telephonySnapshot.muted;
+                    MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
+                        @Override
+                        public TelephonyResult<Void> call() {
+                            return MainActivity.this.telephony.setMuted(target);
+                        }
+                    });
+                }
+            });
+            View pad = callAction(R.drawable.ic_dialpad, "Клавиатура", false, new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.callPadShown = true;
+                    MainActivity.this.showCabinet();
+                }
+            });
+            View spk = callAction(R.drawable.ic_speaker, "Динамик", speaker, new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
+                        @Override
+                        public TelephonyResult<Void> call() {
+                            return MainActivity.this.telephony.setAudioRoute(speaker ? AudioRoute.EARPIECE : AudioRoute.SPEAKER);
+                        }
+                    });
+                }
+            });
+            r1.addView(mute, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            r1.addView(pad, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            r1.addView(spk, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            screen.addView(r1, matchWrap());
+            LinearLayout r2 = row();
+            r2.setGravity(17);
+            r2.setPadding(0, dp(18), 0, 0);
+            View hold = callAction(telephonySnapshot.held ? R.drawable.ic_play : R.drawable.ic_pause, telephonySnapshot.held ? "Снять" : "Удержание", telephonySnapshot.held, new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    final boolean target = !telephonySnapshot.held;
+                    MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
+                        @Override
+                        public TelephonyResult<Void> call() {
+                            return MainActivity.this.telephony.setHeld(target);
+                        }
+                    });
+                }
+            });
+            hold.setEnabled(telephonySnapshot.callState == TelecomCallState.ACTIVE || telephonySnapshot.callState == TelecomCallState.HELD);
+            r2.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1.0f));
+            r2.addView(hold, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            r2.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1.0f));
+            screen.addView(r2, matchWrap());
         }
-        Button end = button("Завершить", -1, Color.rgb(214, 62, 62));
-        end.setTypeface(Typeface.DEFAULT, 1);
+        LinearLayout endRow = row();
+        endRow.setGravity(17);
+        endRow.setPadding(0, dp(26), 0, 0);
+        TextView end = roundIconButton(R.drawable.ic_call_end, -1, RED, 72);
+        end.setElevation(dp(4));
+        end.setContentDescription("Завершить");
         end.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                MainActivity.this.telephonyAction(new Callable<TelephonyResult<Void>>() {
+                MainActivity.this.callPadShown = false;
+                MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
                     @Override
                     public TelephonyResult<Void> call() {
                         return MainActivity.this.telephony.hangup();
@@ -1409,10 +1695,22 @@ public final class MainActivity extends Activity {
                 });
             }
         });
-        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(56));
-        ep.topMargin = dp(16);
-        card.addView(end, ep);
-        linearLayout.addView(card, cardMargin());
+        endRow.addView(end, new LinearLayout.LayoutParams(dp(72), dp(72)));
+        if (this.callPadShown) {
+            TextView hide = label("Скрыть", 15, -1, true);
+            hide.setGravity(17);
+            hide.setPadding(dp(24), 0, 0, 0);
+            hide.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.callPadShown = false;
+                    MainActivity.this.showCabinet();
+                }
+            });
+            endRow.addView(hide, wrap());
+        }
+        screen.addView(endRow, matchWrap());
+        linearLayout.addView(screen, new LinearLayout.LayoutParams(-1, -2));
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -2075,30 +2373,31 @@ public final class MainActivity extends Activity {
     }
 
     private View packageCard(PackageBalance packageBalance, int i) {
-        int[] iArr = {BLUE, CYAN, PURPLE, ORANGE, GREEN};
-        int[] iArr2 = {SOFT_BLUE, SOFT_CYAN, SOFT_PURPLE, SOFT_ORANGE, Color.rgb(232, 249, 238)};
+        int[] iArr = {BLUE, BLUE_DARK, CYAN, PURPLE, GREEN};
         int i2 = iArr[Math.abs(i) % 5];
-        LinearLayout colorCard = colorCard(iArr2[Math.abs(i) % 5], 0, 20);
+        LinearLayout colorCard = colorCard(-1, BORDER, 22);
         LinearLayout row = row();
         row.setGravity(16);
-        row.addView(circleIcon("P", i2, -1, 40), new LinearLayout.LayoutParams(dp(40), dp(40)));
+        row.addView(circleIcon(Math.abs(i) % 2 == 0 ? "P" : "☎", i2, SOFT_BLUE, 44), new LinearLayout.LayoutParams(dp(44), dp(44)));
         LinearLayout column = column();
         column.setPadding(dp(12), 0, 0, 0);
         column.addView(label(packageBalance.title, 17, BLUE_DARK, true), matchWrap());
         column.addView(label(packageBalance.subtitle, 13, MUTED, false), matchWrap());
         row.addView(column, new LinearLayout.LayoutParams(0, -2, 1.0f));
-        row.addView(chip(packageBalance.progressPercent + "%", i2, -1), wrap());
+        TextView pc = chip(packageBalance.progressPercent + "%", BLUE_DARK, YELLOW);
+        row.addView(pc, wrap());
         colorCard.addView(row, matchWrap());
         ProgressBar progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
         progressBar.setProgress(packageBalance.progressPercent);
         progressBar.setProgressTintList(ColorStateList.valueOf(i2));
-        progressBar.setProgressBackgroundTintList(ColorStateList.valueOf(Color.argb(45, 0, 0, 0)));
+        progressBar.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(228, 236, 248)));
         LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, dp(9));
         layoutParams.topMargin = dp(14);
         colorCard.addView(progressBar, layoutParams);
         return colorCard;
     }
+
 
     private void performLogout(boolean z) {
         TelephonyEngine telephonyEngine;
@@ -2228,6 +2527,7 @@ public final class MainActivity extends Activity {
     }
 
     private static String presentValue(String str) {
+        str = leakedLabel(str);
         if (str == null) {
             return "";
         }
@@ -2239,6 +2539,64 @@ public final class MainActivity extends Activity {
             }
         }
         return "";
+    }
+
+    private Button accent(String str) {
+        Button button = button(str, BLUE_DARK, YELLOW);
+        button.setTypeface(Typeface.DEFAULT, 1);
+        return button;
+    }
+
+    private View quickActions() {
+        LinearLayout row = row();
+        String[] names = {"Позвонить", "Услуги", "История", "Чаты"};
+        String[] icons = {"☎", "☷", "◷", "✉"};
+        final int[] tabs = {2, 1, 3, 6};
+        for (int i = 0; i < 4; i++) {
+            final int tab = tabs[i];
+            LinearLayout col = column();
+            col.setGravity(1);
+            TextView ic = circleIcon(icons[i], BLUE, SOFT_BLUE, 54);
+            col.addView(ic, new LinearLayout.LayoutParams(dp(54), dp(54)));
+            TextView cap = label(names[i], 12, BLUE_DARK, true);
+            cap.setGravity(17);
+            cap.setPadding(0, dp(6), 0, 0);
+            col.addView(cap, matchWrap());
+            col.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.chatNumber = null;
+                    MainActivity.this.selectedTab = tab;
+                    MainActivity.this.showCabinet();
+                }
+            });
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        }
+        LinearLayout card = card();
+        card.setPadding(dp(8), dp(16), dp(8), dp(14));
+        card.addView(row, matchWrap());
+        return card;
+    }
+
+    private static String cleanServiceDetails(ServiceItem serviceItem) {
+        String d = serviceItem.details;
+        if (d == null) {
+            return "";
+        }
+        String title = serviceItem.title == null ? "" : serviceItem.title.trim();
+        StringBuilder sb = new StringBuilder();
+        for (String line : d.split("\\n")) {
+            String t = line.trim();
+            String lc = t.toLowerCase(Locale.ROOT);
+            if (t.isEmpty() || t.equals(title) || lc.equals("подробнее") || lc.equals("настроить") || lc.equals("абонентская плата") || lc.equals("абонентная плата") || lc.equals("подключена") || lc.equals("отключена") || lc.equals("детальніше")) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append(t);
+        }
+        return sb.toString();
     }
 
     private Button primary(String str) {
@@ -2489,13 +2847,13 @@ public final class MainActivity extends Activity {
         LinearLayout column = column();
         column.setPadding(dp(20), dp(20), dp(20), dp(20));
         int i = BLUE_DARK;
-        column.setBackground(gradient(i, Color.rgb(28, 133, 222), 24));
+        column.setBackground(gradient(i, BLUE, 28));
         LinearLayout row = row();
         row.setGravity(16);
         LinearLayout column2 = column();
         int i2 = 0;
         column2.addView(label("Ваш номер", 12, Color.rgb(205, 228, 255), false), matchWrap());
-        column2.addView(label(dashboardSnapshot.phoneNumber, 21, -1, true), matchWrap());
+        column2.addView(label(formatInternationalPhone(dashboardSnapshot.phoneNumber), 21, -1, true), matchWrap());
         row.addView(column2, new LinearLayout.LayoutParams(0, -2, 1.0f));
         row.addView(chip(displayValue(dashboardSnapshot.status), -1, Color.argb(42, 255, 255, 255)), wrap());
         column.addView(row, matchWrap());
@@ -2507,7 +2865,7 @@ public final class MainActivity extends Activity {
         label2.setPadding(0, dp(5), 0, dp(16));
         column.addView(label2, matchWrap());
         LinearLayout row2 = row();
-        Button glassButton = glassButton("Пополнить");
+        Button glassButton = accent("Пополнить");
         Button glassButton2 = glassButton("История средств");
         glassButton.setOnClickListener(new defpackage.d(this, 2));
         glassButton2.setOnClickListener(new defpackage.d(this, 3));
@@ -2517,6 +2875,7 @@ public final class MainActivity extends Activity {
         row2.addView(glassButton2, layoutParams);
         column.addView(row2, matchWrap());
         linearLayout.addView(column, matchWrap());
+        linearLayout.addView(quickActions(), cardMargin());
         linearLayout.addView(sectionTitle("Краткая сводка", "Основные данные вашего номера"), sectionMargin());
         LinearLayout row3 = row();
         row3.addView(statTile("Тариф", displayValue(dashboardSnapshot.tariffName), "▣", PURPLE, SOFT_PURPLE), new LinearLayout.LayoutParams(0, dp(126), 1.0f));
@@ -2600,7 +2959,9 @@ public final class MainActivity extends Activity {
             label.setPadding(0, dp(16), 0, 0);
             column.addView(label, matchWrap());
         }
-        linearLayout.addView(column, matchWrap());
+        if (!telephonySnapshot.isProvisioned()) {
+            linearLayout.addView(column, matchWrap());
+        }
         boolean isProvisioned = telephonySnapshot.isProvisioned();
         DashboardSnapshot dashboardSnapshot = this.dashboard;
         int i3 = 8;
@@ -2692,89 +3053,7 @@ public final class MainActivity extends Activity {
             renderCallPanel(linearLayout, telephonySnapshot);
             return;
         }
-        SubscriberProfile subscriberProfile2 = dashboardSnapshot == null ? new SubscriberProfile() : dashboardSnapshot.profile;
-        DashboardSnapshot dashboardSnapshot3 = this.dashboard;
-        String presentValue4 = dashboardSnapshot3 != null ? presentValue(dashboardSnapshot3.phoneNumber) : "";
-        if (presentValue4.isEmpty()) {
-            presentValue4 = presentValue(subscriberProfile2.phoneNumber);
-        }
-        String presentValue5 = presentValue(subscriberProfile2.itPhoneId);
-        if (presentValue5.isEmpty()) {
-            presentValue5 = presentValue(telephonySnapshot.displayName);
-        }
-        LinearLayout colorCard = colorCard(SOFT_CYAN, Color.rgb(190, 232, 236), 20);
-        int i5 = BLUE_DARK;
-        colorCard.addView(label("Профиль IT Phone", 18, i5, true), matchWrap());
-        if (!presentValue5.isEmpty()) {
-            colorCard.addView(label("ID пользователя: ".concat(presentValue5), 14, TEXT, true), matchWrap());
-        }
-        if (!presentValue4.isEmpty()) {
-            colorCard.addView(label("Привязанный номер: " + formatInternationalPhone(presentValue4), 14, TEXT, false), matchWrap());
-        }
-        colorCard.addView(label("Кодеки профиля: " + joinCodecs(telephonySnapshot.supportedCodecs), 12, MUTED, false), matchWrap());
-        linearLayout.addView(colorCard, cardMargin());
-        LinearLayout card2 = card();
-        card2.addView(label("Набор номера", 20, i5, true), matchWrap());
-        EditText field3 = field("Номер абонента", 3);
-        field3.setTextSize(23.0f);
-        field3.setGravity(17);
-        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, dp(62));
-        layoutParams2.topMargin = dp(12);
-        card2.addView(field3, layoutParams2);
-        String[][] strArr = {new String[]{"1", "2", "3"}, new String[]{"4", "5", "6"}, new String[]{"7", "8", "9"}, new String[]{"*", "0", "#"}};
-        int i6 = 0;
-        while (i6 < 4) {
-            String[] strArr2 = strArr[i6];
-            LinearLayout row2 = row();
-            LinearLayout.LayoutParams matchWrap4 = matchWrap();
-            matchWrap4.topMargin = dp(i3);
-            int i7 = i2;
-            while (i7 < strArr2.length) {
-                String str3 = strArr2[i7];
-                Button button = button(str3, BLUE_DARK, Color.rgb(242, 247, 253));
-                button.setTextSize(23.0f);
-                button.setOnClickListener(new defpackage.e(field3, str3, 1));
-                LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(0, dp(54), 1.0f);
-                if (i7 > 0) {
-                    layoutParams3.leftMargin = dp(8);
-                }
-                row2.addView(button, layoutParams3);
-                i7++;
-                i3 = 8;
-            }
-            card2.addView(row2, matchWrap4);
-            i6++;
-            i2 = 0;
-        }
-        LinearLayout row3 = row();
-        Button secondary2 = secondary("⌫");
-        secondary2.setOnClickListener(new defpackage.d(field3, 16));
-        Button button2 = button("Позвонить", -1, GREEN);
-        button2.setTypeface(Typeface.DEFAULT, 1);
-        button2.setOnClickListener(new defpackage.h(this, field3, 2));
-        LinearLayout.LayoutParams matchWrap5 = matchWrap();
-        matchWrap5.topMargin = dp(12);
-        row3.addView(secondary2, new LinearLayout.LayoutParams(0, dp(52), 1.0f));
-        LinearLayout.LayoutParams layoutParams4 = new LinearLayout.LayoutParams(0, dp(52), 2.0f);
-        layoutParams4.leftMargin = dp(9);
-        row3.addView(button2, layoutParams4);
-        card2.addView(row3, matchWrap5);
-        linearLayout.addView(card2, cardMargin());
-        linearLayout.addView(info("Голос: G.711 (PCMA/PCMU) через SIP по WSS. Если звонок не проходит — откройте «Журнал телефонии» и отправьте его разработчику."), cardMargin());
-        View secondary3 = secondary("Проверить подключение телефонии");
-        secondary3.setOnClickListener(new defpackage.d(this, 11));
-        linearLayout.addView(secondary3, cardMargin());
-        View secondary4 = secondary("Открыть историю звонков");
-        secondary4.setOnClickListener(new defpackage.d(this, 12));
-        linearLayout.addView(secondary4, cardMargin());
-        Button logButton = secondary("Журнал телефонии");
-        logButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                MainActivity.this.showTelephonyLog();
-            }
-        });
-        linearLayout.addView(logButton, cardMargin());
+        renderDialer(linearLayout, telephonySnapshot);
     }
 
     private void renderProfile(LinearLayout linearLayout) {
@@ -2782,7 +3061,7 @@ public final class MainActivity extends Activity {
         SubscriberProfile subscriberProfile = dashboardSnapshot == null ? new SubscriberProfile() : dashboardSnapshot.profile;
         LinearLayout column = column();
         column.setPadding(dp(20), dp(20), dp(20), dp(20));
-        int i = PURPLE;
+        int i = BLUE_DARK;
         int i2 = BLUE;
         column.setBackground(gradient(i, i2, 24));
         LinearLayout row = row();
@@ -2888,7 +3167,7 @@ public final class MainActivity extends Activity {
         }
         LinearLayout column = column();
         column.setPadding(dp(20), dp(20), dp(20), dp(20));
-        int i = CYAN;
+        int i = BLUE_DARK;
         int i2 = BLUE;
         column.setBackground(gradient(i, i2, 24));
         column.addView(label("Услуги и опции", 24, -1, true), matchWrap());
@@ -3014,9 +3293,9 @@ public final class MainActivity extends Activity {
         row.addView(column, new LinearLayout.LayoutParams(0, -2, 1.0f));
         row.addView(chip(displayValue(serviceItem.status), i, -1), wrap());
         colorCard.addView(row, matchWrap());
-        String str = serviceItem.details;
-        if (str != null && !str.trim().isEmpty()) {
-            TextView label = label(serviceItem.details, 13, TEXT, false);
+        String str = cleanServiceDetails(serviceItem);
+        if (!str.isEmpty()) {
+            TextView label = label(str, 13, TEXT, false);
             label.setMaxLines(3);
             label.setPadding(0, dp(12), 0, 0);
             colorCard.addView(label, matchWrap());
@@ -3149,12 +3428,14 @@ public final class MainActivity extends Activity {
         String[] names = {"Главная", "Услуги", "История"};
         final int[] tabs = {0, 1, 3};
         LinearLayout row = row();
+        row.setPadding(dp(4), dp(4), dp(4), dp(4));
+        row.setBackground(rounded(-1, 22, BORDER, 1));
         for (int i = 0; i < 3; i++) {
             final int tab = tabs[i];
             boolean active = this.selectedTab == tab;
-            TextView t = label(names[i], 14, active ? -1 : BLUE_DARK, true);
+            TextView t = label(names[i], 14, active ? BLUE_DARK : MUTED, true);
             t.setGravity(17);
-            t.setBackground(active ? gradient(BLUE, CYAN, 18) : rounded(-1, 18, BORDER, 1));
+            t.setBackground(active ? rounded(YELLOW, 18, 0, 0) : null);
             t.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
@@ -3162,14 +3443,10 @@ public final class MainActivity extends Activity {
                     MainActivity.this.showCabinet();
                 }
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), 1.0f);
-            if (i > 0) {
-                lp.leftMargin = dp(8);
-            }
-            row.addView(t, lp);
+            row.addView(t, new LinearLayout.LayoutParams(0, dp(40), 1.0f));
         }
         LinearLayout.LayoutParams rp = matchWrap();
-        rp.bottomMargin = dp(12);
+        rp.bottomMargin = dp(14);
         linearLayout.addView(row, rp);
     }
 
@@ -4392,16 +4669,26 @@ public final class MainActivity extends Activity {
         }
         this.chatMessages = null;
         this.root.removeAllViews();
+        final boolean inCall = this.selectedTab == 2 && this.telephonySnapshot != null && this.telephonySnapshot.isProvisioned() && this.telephonySnapshot.hasActiveCall();
+        getWindow().setNavigationBarColor(inCall ? BLUE_DARK : -1);
         LinearLayout column = column();
-        column.addView(topBar(), new LinearLayout.LayoutParams(-1, dp(82)));
+        if (!inCall) {
+            column.addView(topBar(), new LinearLayout.LayoutParams(-1, -2));
+        }
         FrameLayout frameLayout = new FrameLayout(this);
-        frameLayout.setBackgroundColor(BG);
+        frameLayout.setBackgroundColor(inCall ? BLUE_DARK : BG);
         column.addView(frameLayout, new LinearLayout.LayoutParams(-1, 0, 1.0f));
-        column.addView(bottomNav(), new LinearLayout.LayoutParams(-1, dp(74)));
+        if (!inCall) {
+            column.addView(bottomNav(), new LinearLayout.LayoutParams(-1, -2));
+        }
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
         LinearLayout column2 = column();
-        column2.setPadding(dp(14), dp(16), dp(14), dp(30));
+        if (inCall) {
+            column2.setPadding(0, 0, 0, 0);
+        } else {
+            column2.setPadding(dp(14), dp(16), dp(14), dp(24));
+        }
         int i = this.selectedTab;
         if (i == 0 || i == 1 || i == 3) {
             cabinetSegments(column2);
@@ -4616,8 +4903,8 @@ public final class MainActivity extends Activity {
         this.activePortalOtpField = field;
         this.activePortalOtpConfirm = primary;
         primary.setOnClickListener(new defpackage.c(this, field, primary, i));
-        if (isOtpNotificationAccessEnabled()) {
-            TextView info = info("Автоподстановка включена. Telecom+ возьмёт последние четыре цифры из уведомления входящего звонка IT Phone и сразу проверит код.");
+        if (true) {
+            TextView info = info("Введите последние четыре цифры номера, с которого поступил короткий звонок от IT Phone, и нажмите «Войти».");
             LinearLayout.LayoutParams matchWrap3 = matchWrap();
             matchWrap3.topMargin = dp(12);
             card.addView(info, matchWrap3);
@@ -4881,22 +5168,28 @@ public final class MainActivity extends Activity {
         String str;
         LinearLayout row = row();
         row.setGravity(16);
-        row.setPadding(dp(18), dp(10), dp(10), dp(10));
-        row.setBackground(gradient(BLUE_DARK, BLUE, 0));
+        row.setPadding(dp(16), dp(14), dp(14), dp(18));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BLUE_DARK, BLUE});
+        bg.setCornerRadii(new float[]{0, 0, 0, 0, dp(26), dp(26), dp(26), dp(26)});
+        row.setBackground(bg);
+        row.setElevation(dp(4));
+        View logo = logo();
+        row.addView(logo, new LinearLayout.LayoutParams(dp(44), dp(44)));
         LinearLayout column = column();
-        column.addView(label(tabTitle(), 23, -1, true), matchWrap());
+        column.setPadding(dp(12), 0, dp(8), 0);
+        column.addView(label(tabTitle(), 21, -1, true), matchWrap());
         if (this.dashboard == null) {
             str = "Telecom+";
         } else {
-            str = this.dashboard.phoneNumber + " · " + this.dashboard.status;
+            str = formatInternationalPhone(this.dashboard.phoneNumber) + " · " + this.dashboard.status;
         }
-        column.addView(label(str, 13, Color.rgb(214, 231, 255), false), matchWrap());
+        column.addView(label(str, 13, Color.rgb(200, 222, 255), false), matchWrap());
         row.addView(column, new LinearLayout.LayoutParams(0, -2, 1.0f));
-        Button button = button("↻", -1, Color.argb(36, 255, 255, 255));
-        button.setTextSize(24.0f);
-        button.setContentDescription("Обновить");
-        button.setOnClickListener(new defpackage.d(this, 14));
-        row.addView(button, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        TextView refresh = new Ico.CircleView(this, Ico.get(this, R.drawable.ic_refresh, -1));
+        refresh.setBackground(rounded(Color.argb(40, 255, 255, 255), 24, 0, 0));
+        refresh.setContentDescription("Обновить");
+        refresh.setOnClickListener(new defpackage.d(this, 14));
+        row.addView(refresh, new LinearLayout.LayoutParams(dp(46), dp(46)));
         return row;
     }
 
