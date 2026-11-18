@@ -145,4 +145,96 @@ final class TurnstileSolver {
         webView.loadDataWithBaseURL(ORIGIN, html, "text/html", "UTF-8", null);
         handler.postDelayed(timeout, 90000L);
     }
+
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    static Runnable solveEmbedded(final Activity activity, final ViewGroup container, String str, String str2, final Callback callback) {
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final boolean[] done = {false};
+        final WebView webView = new WebView(activity);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+        webView.setBackgroundColor(0);
+        container.addView(webView, new ViewGroup.LayoutParams(-1, -1));
+        final Runnable cleanup = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    webView.stopLoading();
+                    webView.removeJavascriptInterface("TsBridge");
+                    ViewGroup parent = (ViewGroup) webView.getParent();
+                    if (parent != null) {
+                        parent.removeView(webView);
+                    }
+                    webView.destroy();
+                } catch (Exception unused) {
+                }
+            }
+        };
+        final Runnable timeout = new Runnable() {
+            @Override
+            public void run() {
+                if (!done[0]) {
+                    done[0] = true;
+                    cleanup.run();
+                    callback.onFailure("Проверка безопасности не пройдена за отведённое время. Повторите попытку.");
+                }
+            }
+        };
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void token(final String t) {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (done[0]) {
+                            return;
+                        }
+                        done[0] = true;
+                        handler.removeCallbacks(timeout);
+                        cleanup.run();
+                        callback.onToken(t);
+                    }
+                });
+            }
+
+            @JavascriptInterface
+            public void error(final String e) {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (done[0]) {
+                            return;
+                        }
+                        done[0] = true;
+                        handler.removeCallbacks(timeout);
+                        cleanup.run();
+                        callback.onFailure("Проверка безопасности не пройдена (" + e + "). Повторите попытку.");
+                    }
+                });
+            }
+        }, "TsBridge");
+        webView.setWebViewClient(new WebViewClient());
+        String html = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                + "<script src=\"https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=tsReady\" async defer></script>"
+                + "</head><body style=\"margin:0;display:flex;justify-content:center;align-items:center;min-height:80px;background:transparent\"><div id=\"w\"></div><script>"
+                + "function tsReady(){turnstile.render('#w',{sitekey:'" + str.replaceAll("[^A-Za-z0-9_-]", "") + "',action:'" + str2.replaceAll("[^A-Za-z0-9_-]", "") + "',appearance:'interaction-only',"
+                + "callback:function(t){TsBridge.token(t)},"
+                + "'error-callback':function(e){TsBridge.error(String(e));return true},"
+                + "'timeout-callback':function(){TsBridge.error('timeout')}});}"
+                + "</script></body></html>";
+        webView.loadDataWithBaseURL(ORIGIN, html, "text/html", "UTF-8", null);
+        handler.postDelayed(timeout, 90000L);
+        return new Runnable() {
+            @Override
+            public void run() {
+                if (!done[0]) {
+                    done[0] = true;
+                    handler.removeCallbacks(timeout);
+                    cleanup.run();
+                }
+            }
+        };
+    }
 }

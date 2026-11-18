@@ -2019,29 +2019,8 @@ public final class MainActivity extends Activity {
                     MainActivity.this.showPasswordLogin(str3);
                     return;
                 }
-                button.setText("Проверка безопасности…");
-                TurnstileSolver.solve(MainActivity.this, (String) ((PortalResult.Success) portalResult).value, PortalLoginFlow.ACTION_PASSWORD, new TurnstileSolver.Callback() {
-                    @Override
-                    public void onToken(final String str4) {
-                        button.setText("Входим…");
-                        MainActivity.this.runPortal(new Callable<PortalResult<PortalLoginFlow.Challenge>>() {
-                            @Override
-                            public PortalResult<PortalLoginFlow.Challenge> call() {
-                                return MainActivity.this.gateway.loginFlow().submitCredentials(digits, str2, str4);
-                            }
-                        }, new PortalCallback<PortalLoginFlow.Challenge>() {
-                            @Override
-                            public void accept(PortalResult<PortalLoginFlow.Challenge> portalResult2) {
-                                MainActivity.this.onPortalStepResult(portalResult2);
-                            }
-                        });
-                    }
-
-                    @Override
-                    public void onFailure(String str4) {
-                        MainActivity.this.showPasswordLogin(str4);
-                    }
-                });
+                MainActivity.this.turnstileKey = (String) ((PortalResult.Success) portalResult).value;
+                MainActivity.this.showAuthCheck(digits, str2);
             }
         });
     }
@@ -4999,136 +4978,206 @@ public final class MainActivity extends Activity {
     }
 
     private void showOtpLogin(String str) {
-        int i = 0;
         clearPortalOtpUi(false);
-        this.root.removeAllViews();
-        ScrollView scrollView = new ScrollView(this);
-        LinearLayout column = column();
-        int i2 = 1;
-        column.setGravity(1);
-        column.setPadding(dp(22), dp(38), dp(22), dp(32));
-        column.addView(logo(), new LinearLayout.LayoutParams(dp(72), dp(72)));
-        LinearLayout card = card();
-        LinearLayout.LayoutParams matchWrap = matchWrap();
-        matchWrap.topMargin = dp(20);
-        card.addView(label("Подтверждение входа", 24, BLUE_DARK, true), matchWrap());
-        String str2 = this.otpHint.isEmpty() ? "На номер +380" + maskPhone(this.phone) + " выполнен короткий звонок. Введите последние четыре цифры номера вызывающего абонента." : this.otpHint;
-        int i3 = MUTED;
-        TextView label = label(str2, 15, i3, false);
-        label.setPadding(0, dp(10), 0, dp(16));
-        card.addView(label, matchWrap());
+        LinearLayout card = authScreen(3);
+        card.addView(label("Введите код", 24, TEXT, true), matchWrap());
+        String hint = this.otpHint.isEmpty() ? "На номер +380" + maskPhone(this.phone) + " поступит короткий звонок. Введите последние четыре цифры номера, с которого звонят." : this.otpHint;
+        TextView sub = label(hint, 14, MUTED, false);
+        sub.setPadding(0, dp(8), 0, dp(18));
+        card.addView(sub, matchWrap());
         EditText field = field("••••", 18);
-        field.setTextSize(27.0f);
+        field.setTextSize(30.0f);
         field.setGravity(17);
-        field.setLetterSpacing(0.32f);
+        field.setLetterSpacing(0.4f);
         field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
-        card.addView(field, new LinearLayout.LayoutParams(-1, dp(62)));
-        TextView label2 = label("", 14, i3, false);
-        label2.setGravity(17);
-        label2.setPadding(0, dp(12), 0, 0);
-        card.addView(label2, matchWrap());
+        card.addView(field, new LinearLayout.LayoutParams(-1, dp(66)));
+        TextView timer = label("", 13, MUTED, false);
+        timer.setGravity(17);
+        timer.setPadding(0, dp(12), 0, 0);
+        card.addView(timer, matchWrap());
         if (str != null && !str.trim().isEmpty()) {
-            TextView label3 = label(str, 14, RED, false);
-            label3.setPadding(0, dp(12), 0, 0);
-            card.addView(label3, matchWrap());
+            TextView err = label(str, 14, RED, false);
+            err.setGravity(17);
+            err.setPadding(0, dp(8), 0, 0);
+            card.addView(err, matchWrap());
         }
         Button primary = primary("Войти");
-        LinearLayout.LayoutParams matchWrap2 = matchWrap();
-        matchWrap2.topMargin = dp(18);
-        card.addView(primary, matchWrap2);
+        LinearLayout.LayoutParams pp = lp(-1, dp(54), 0);
+        pp.topMargin = dp(16);
+        card.addView(primary, pp);
         configureAuthGuard(primary, "Войти");
         this.activePortalOtpField = field;
         this.activePortalOtpConfirm = primary;
-        primary.setOnClickListener(new defpackage.c(this, field, primary, i));
-        if (true) {
-            TextView info = info("Введите последние четыре цифры номера, с которого поступил короткий звонок от IT Phone, и нажмите «Войти».");
-            LinearLayout.LayoutParams matchWrap3 = matchWrap();
-            matchWrap3.topMargin = dp(12);
-            card.addView(info, matchWrap3);
-        } else {
-            TextView warning = warning("Чтобы подставлять код автоматически, один раз разрешите Telecom+ доступ к уведомлениям. Обрабатываются только уведомления IT Phone; полный номер не сохраняется.");
-            LinearLayout.LayoutParams matchWrap4 = matchWrap();
-            matchWrap4.topMargin = dp(12);
-            card.addView(warning, matchWrap4);
-            Button secondary = secondary("Разрешить автоподстановку");
-            LinearLayout.LayoutParams matchWrap5 = matchWrap();
-            matchWrap5.topMargin = dp(9);
-            card.addView(secondary, matchWrap5);
-            secondary.setOnClickListener(new defpackage.d(this, i));
-        }
-        Button secondary2 = secondary("Получить код ещё раз");
-        LinearLayout.LayoutParams matchWrap6 = matchWrap();
-        matchWrap6.topMargin = dp(10);
-        card.addView(secondary2, matchWrap6);
-        secondary2.setOnClickListener(new defpackage.e(this, secondary2, i));
-        Button secondary3 = secondary("Изменить номер или пароль");
-        LinearLayout.LayoutParams matchWrap7 = matchWrap();
-        matchWrap7.topMargin = dp(10);
-        card.addView(secondary3, matchWrap7);
-        secondary3.setOnClickListener(new defpackage.d(this, i2));
-        TextView label4 = label("Если звонок не поступил за 20–30 секунд, запросите код ещё раз: звонком или SMS.", 13, i3, false);
-        label4.setGravity(17);
-        label4.setPadding(dp(4), dp(12), dp(4), 0);
-        card.addView(label4, matchWrap());
-        startOtpTimer(label2, secondary2);
-        column.addView(card, matchWrap);
-        scrollView.addView(column);
-        this.root.addView(scrollView, new FrameLayout.LayoutParams(-1, -1));
+        primary.setOnClickListener(new defpackage.c(this, field, primary, 0));
+        Button again = secondary("Получить код ещё раз");
+        LinearLayout.LayoutParams ap = lp(-1, dp(50), 0);
+        ap.topMargin = dp(10);
+        card.addView(again, ap);
+        again.setOnClickListener(new defpackage.e(this, again, 0));
+        TextView back = label("Изменить номер или пароль", 14, BLUE, true);
+        back.setGravity(17);
+        back.setPadding(0, dp(16), 0, dp(4));
+        card.addView(back, matchWrap());
+        back.setOnClickListener(new defpackage.d(this, 1));
+        startOtpTimer(timer, again);
         consumeRecentPortalOtp();
     }
+
+    private LinearLayout authScreen(int step) {
+        this.root.removeAllViews();
+        getWindow().setStatusBarColor(BLUE_DARK);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        getWindow().setNavigationBarColor(BG);
+        FrameLayout fl = new FrameLayout(this);
+        fl.setBackgroundColor(BG);
+        View hero = new View(this);
+        hero.setBackground(gradient(BLUE_DARK, BLUE, 40));
+        FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(-1, dp(330));
+        hp.topMargin = dp(-70);
+        fl.addView(hero, hp);
+        View c1 = new View(this);
+        c1.setBackground(rounded(Color.argb(30, 255, 203, 0), 90, 0, 0));
+        FrameLayout.LayoutParams c1p = new FrameLayout.LayoutParams(dp(180), dp(180));
+        c1p.gravity = 53;
+        c1p.rightMargin = dp(-60);
+        c1p.topMargin = dp(-30);
+        fl.addView(c1, c1p);
+        ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
+        LinearLayout col = column();
+        col.setGravity(1);
+        col.setPadding(dp(20), dp(48), dp(20), dp(28));
+        col.addView(logo(), new LinearLayout.LayoutParams(dp(68), dp(68)));
+        LinearLayout nm = row();
+        nm.setGravity(17);
+        nm.setPadding(0, dp(12), 0, 0);
+        nm.addView(label("Telecom", 30, -1, true), wrap());
+        nm.addView(label("+", 30, YELLOW, true), wrap());
+        col.addView(nm, matchWrap());
+        TextView tg = label("Личный кабинет Intertelecom", 13, Color.rgb(190, 212, 250), false);
+        tg.setGravity(17);
+        col.addView(tg, matchWrap());
+        LinearLayout card = column();
+        card.setPadding(dp(22), dp(20), dp(22), dp(22));
+        card.setBackground(rounded(-1, 28, BORDER, 1));
+        card.setElevation(dp(8));
+        LinearLayout steps = row();
+        steps.setPadding(0, 0, 0, dp(18));
+        for (int i = 1; i <= 3; i++) {
+            View b = new View(this);
+            b.setBackground(rounded(i <= step ? YELLOW : Color.rgb(228, 237, 249), 3, 0, 0));
+            LinearLayout.LayoutParams bp = lp(0, dp(5), 1.0f);
+            if (i > 1) {
+                bp.leftMargin = dp(6);
+            }
+            steps.addView(b, bp);
+        }
+        card.addView(steps, matchWrap());
+        LinearLayout.LayoutParams cp = matchWrap();
+        cp.topMargin = dp(26);
+        col.addView(card, cp);
+        TextView note = label("Личный пароль не сохраняется. Приложение хранит только зашифрованную серверную сессию.", 12, MUTED, false);
+        note.setGravity(17);
+        note.setPadding(dp(8), dp(18), dp(8), 0);
+        col.addView(note, matchWrap());
+        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
+        fl.addView(sv, new FrameLayout.LayoutParams(-1, -1));
+        this.root.addView(fl, new FrameLayout.LayoutParams(-1, -1));
+        card.setAlpha(0.0f);
+        card.animate().alpha(1.0f).setDuration(220).start();
+        return card;
+    }
+
+    private Runnable authCancel;
+
+    private void showAuthCheck(final String digits, final String password) {
+        LinearLayout card = authScreen(2);
+        card.addView(label("Проверка безопасности", 24, TEXT, true), matchWrap());
+        TextView sub = label("Отметьте галочку Cloudflare, если она появилась. Проверка может пройти автоматически.", 14, MUTED, false);
+        sub.setPadding(0, dp(8), 0, dp(12));
+        card.addView(sub, matchWrap());
+        FrameLayout box = new FrameLayout(this);
+        card.addView(box, new LinearLayout.LayoutParams(-1, dp(90)));
+        final TextView status = label("", 14, MUTED, false);
+        status.setGravity(17);
+        status.setPadding(0, dp(8), 0, 0);
+        card.addView(status, matchWrap());
+        TextView back = label("Назад", 14, BLUE, true);
+        back.setGravity(17);
+        back.setPadding(0, dp(14), 0, dp(4));
+        card.addView(back, matchWrap());
+        final String[] sk = {this.turnstileKey};
+        back.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (MainActivity.this.authCancel != null) {
+                    MainActivity.this.authCancel.run();
+                    MainActivity.this.authCancel = null;
+                }
+                MainActivity.this.showPasswordLogin(null);
+            }
+        });
+        this.authCancel = TurnstileSolver.solveEmbedded(this, box, this.turnstileKey, PortalLoginFlow.ACTION_PASSWORD, new TurnstileSolver.Callback() {
+            @Override
+            public void onToken(final String token) {
+                MainActivity.this.authCancel = null;
+                status.setText("Входим…");
+                MainActivity.this.runPortal(new Callable<PortalResult<PortalLoginFlow.Challenge>>() {
+                    @Override
+                    public PortalResult<PortalLoginFlow.Challenge> call() {
+                        return MainActivity.this.gateway.loginFlow().submitCredentials(digits, password, token);
+                    }
+                }, new PortalCallback<PortalLoginFlow.Challenge>() {
+                    @Override
+                    public void accept(PortalResult<PortalLoginFlow.Challenge> portalResult2) {
+                        MainActivity.this.onPortalStepResult(portalResult2);
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(String message) {
+                MainActivity.this.authCancel = null;
+                MainActivity.this.showPasswordLogin(message);
+            }
+        });
+    }
+
+    private String turnstileKey = "";
 
     private void showPasswordLogin(String str) {
         clearPortalOtpUi(true);
         stopOtpTimer();
-        this.root.removeAllViews();
-        ScrollView scrollView = new ScrollView(this);
-        LinearLayout column = column();
-        column.setGravity(1);
-        column.setPadding(dp(22), dp(38), dp(22), dp(32));
-        column.addView(logo(), new LinearLayout.LayoutParams(dp(78), dp(78)));
-        TextView label = label("Telecom+", 34, BLUE, true);
-        label.setGravity(17);
-        int i = 0;
-        label.setPadding(0, dp(14), 0, dp(24));
-        column.addView(label, matchWrap());
-        LinearLayout card = card();
-        card.addView(label("Вход в кабинет", 24, BLUE_DARK, true), matchWrap());
-        int i2 = MUTED;
-        TextView label2 = label("Введите номер (9 цифр без начального нуля) или идентификатор и пароль личного кабинета. Затем портал позвонит на номер: нужны последние четыре цифры вызывающего номера.", 15, i2, false);
-        label2.setPadding(0, dp(10), 0, dp(16));
-        card.addView(label2, matchWrap());
-        final EditText field = field("Номер или цифровой идентификатор", 3);
+        LinearLayout card = authScreen(1);
+        card.addView(label("Вход в кабинет", 24, TEXT, true), matchWrap());
+        TextView sub = label("Номер без нуля (9 цифр) или идентификатор и пароль от личного кабинета.", 14, MUTED, false);
+        sub.setPadding(0, dp(8), 0, dp(18));
+        card.addView(sub, matchWrap());
+        final EditText field = field("Номер или идентификатор", 3);
         field.setText(this.phone);
-        field.setTextSize(20.0f);
-        card.addView(field, new LinearLayout.LayoutParams(-1, dp(58)));
-        final EditText field2 = field("Личный пароль", 129);
+        field.setTextSize(18.0f);
+        card.addView(field, new LinearLayout.LayoutParams(-1, dp(56)));
+        final EditText field2 = field("Пароль", 129);
         field2.setTextSize(18.0f);
-        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, dp(58));
-        layoutParams.topMargin = dp(12);
-        card.addView(field2, layoutParams);
+        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, dp(56));
+        fp.topMargin = dp(12);
+        card.addView(field2, fp);
         if (str != null && !str.trim().isEmpty()) {
-            TextView label3 = label(str, 14, RED, false);
-            label3.setPadding(0, dp(12), 0, 0);
-            card.addView(label3, matchWrap());
+            TextView err = label(str, 14, RED, false);
+            err.setPadding(0, dp(12), 0, 0);
+            card.addView(err, matchWrap());
         }
-        final Button primary = primary("Войти");
-        LinearLayout.LayoutParams matchWrap = matchWrap();
-        matchWrap.topMargin = dp(18);
-        card.addView(primary, matchWrap);
-        configureAuthGuard(primary, "Войти");
-        primary.setOnClickListener(new View.OnClickListener() { // from class: g
-            @Override // android.view.View.OnClickListener
-            public final void onClick(View view) {
+        final Button primary = primary("Далее");
+        LinearLayout.LayoutParams pp = lp(-1, dp(54), 0);
+        pp.topMargin = dp(18);
+        card.addView(primary, pp);
+        configureAuthGuard(primary, "Далее");
+        primary.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
                 MainActivity.this.lambda$showPasswordLogin$14(field, field2, primary, view);
             }
         });
-        column.addView(card, matchWrap());
-        TextView label4 = label("Личный пароль не сохраняется. После успешного входа приложение хранит только зашифрованную серверную сессию.", 13, i2, false);
-        label4.setGravity(17);
-        label4.setPadding(dp(8), dp(20), dp(8), 0);
-        column.addView(label4, matchWrap());
-        scrollView.addView(column, new FrameLayout.LayoutParams(-1, -2));
-        this.root.addView(scrollView, new FrameLayout.LayoutParams(-1, -1));
     }
 
     private void showRangeDialog(final boolean z) {
