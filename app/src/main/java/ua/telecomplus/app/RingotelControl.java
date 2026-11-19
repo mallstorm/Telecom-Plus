@@ -644,7 +644,7 @@ final class RingotelControl implements SipWebSocket.Listener {
         if (existing != null || this.data.isBlocked(number)) {
             return;
         }
-        boolean wasForeground = TelecomPlusApplication.foreground;
+        boolean wasForeground = TpEnv.foreground;
         this.data.addMessage(number, id.isEmpty() ? null : id, outgoing, content, time, outgoing ? (status == 4 ? 2 : 1) : 2);
         if (live && !outgoing && !wasForeground) {
             notifyMessage(number, content);
@@ -680,7 +680,7 @@ final class RingotelControl implements SipWebSocket.Listener {
             intent.putExtra("open_chat", number);
             PendingIntent pi = PendingIntent.getActivity(this.context, PhoneData.key(number).hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this.context, TelephonyService.CH_MESSAGES) : new Notification.Builder(this.context);
-            b.setSmallIcon(R.drawable.ic_telecom_plus).setContentTitle(this.data.title(number)).setContentText(text).setStyle(new Notification.BigTextStyle().bigText(text)).setAutoCancel(true).setContentIntent(pi);
+            b.setSmallIcon(Res.d("ic_telecom_plus")).setContentTitle(this.data.title(number)).setContentText(text).setStyle(new Notification.BigTextStyle().bigText(text)).setAutoCancel(true).setContentIntent(pi);
             nm.notify(PhoneData.key(number).hashCode(), b.build());
         } catch (Exception e) {
             TelephonyLog.log("notifyMessage: " + e);

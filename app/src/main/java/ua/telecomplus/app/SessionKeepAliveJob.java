@@ -37,13 +37,13 @@ public final class SessionKeepAliveJob extends JobService {
 
     @Override
     public boolean onStartJob(final JobParameters params) {
-        final TelecomPlusApplication app = (TelecomPlusApplication) getApplication();
+        TpEnv.init(this);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    if (app.gateway != null && app.gateway.hasSavedSession()) {
-                        app.gateway.validateSession();
+                    if (TpEnv.gateway != null && TpEnv.gateway.hasSavedSession()) {
+                        TpEnv.gateway.validateSession();
                     }
                 } catch (Exception unused) {
                 }

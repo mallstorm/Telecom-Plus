@@ -8,8 +8,9 @@ import android.content.Intent;
 public final class CallActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        final TelecomPlusApplication app = (TelecomPlusApplication) context.getApplicationContext();
-        if (app.telephony == null || intent == null) {
+        TpEnv.init(context);
+        final TelephonyEngine engine = TpEnv.telephony;
+        if (engine == null || intent == null) {
             return;
         }
         String action = intent.getAction();
@@ -19,7 +20,7 @@ public final class CallActionReceiver extends BroadcastReceiver {
                 @Override
                 public void run() {
                     try {
-                        app.telephony.hangup();
+                        engine.hangup();
                     } finally {
                         result.finish();
                     }

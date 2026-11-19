@@ -67,8 +67,8 @@ public final class TelephonyService extends Service implements TelephonyEngine.L
         super.onCreate();
         this.manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         createChannels(this);
-        TelecomPlusApplication app = (TelecomPlusApplication) getApplication();
-        this.engine = app.telephony;
+        TpEnv.init(this);
+        this.engine = TpEnv.telephony;
     }
 
     @Override
@@ -159,15 +159,15 @@ public final class TelephonyService extends Service implements TelephonyEngine.L
     }
 
     private Notification statusNotification(TelephonySnapshot telephonySnapshot) {
-        return builder(CH_STATUS).setSmallIcon(R.drawable.ic_telecom_plus).setContentTitle("Telecom+").setContentText(statusText(telephonySnapshot)).setOngoing(true).setContentIntent(openApp(false)).build();
+        return builder(CH_STATUS).setSmallIcon(Res.d("ic_telecom_plus")).setContentTitle("Telecom+").setContentText(statusText(telephonySnapshot)).setOngoing(true).setContentIntent(openApp(false)).build();
     }
 
     private String callerTitle(TelephonySnapshot telephonySnapshot) {
-        return PhoneData.get(((TelecomPlusApplication) getApplication()).vault).title(telephonySnapshot.remoteNumber);
+        return PhoneData.get(TpEnv.vault).title(telephonySnapshot.remoteNumber);
     }
 
     private Notification incomingNotification(TelephonySnapshot telephonySnapshot) {
-        Notification.Builder b = builder(CH_CALLS).setSmallIcon(R.drawable.ic_telecom_plus).setContentTitle("Входящий вызов").setContentText(callerTitle(telephonySnapshot)).setCategory(Notification.CATEGORY_CALL).setOngoing(true).setAutoCancel(false).setContentIntent(openApp(false)).setFullScreenIntent(openApp(false), true)
+        Notification.Builder b = builder(CH_CALLS).setSmallIcon(Res.d("ic_telecom_plus")).setContentTitle("Входящий вызов").setContentText(callerTitle(telephonySnapshot)).setCategory(Notification.CATEGORY_CALL).setOngoing(true).setAutoCancel(false).setContentIntent(openApp(false)).setFullScreenIntent(openApp(false), true)
                 .addAction(new Notification.Action.Builder(null, "Отклонить", action(ACTION_DECLINE, 2)).build())
                 .addAction(new Notification.Action.Builder(null, "Ответить", openApp(true)).build());
         if (Build.VERSION.SDK_INT < 26) {
@@ -177,7 +177,7 @@ public final class TelephonyService extends Service implements TelephonyEngine.L
     }
 
     private Notification ongoingNotification(TelephonySnapshot telephonySnapshot) {
-        Notification.Builder b = builder(CH_CALLS).setSmallIcon(R.drawable.ic_telecom_plus).setContentTitle("Разговор").setContentText(callerTitle(telephonySnapshot)).setCategory(Notification.CATEGORY_CALL).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(openApp(false))
+        Notification.Builder b = builder(CH_CALLS).setSmallIcon(Res.d("ic_telecom_plus")).setContentTitle("Разговор").setContentText(callerTitle(telephonySnapshot)).setCategory(Notification.CATEGORY_CALL).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(openApp(false))
                 .addAction(new Notification.Action.Builder(null, "Завершить", action(ACTION_HANGUP, 3)).build());
         if (telephonySnapshot.callStartedAt > 0) {
             b.setWhen(telephonySnapshot.callStartedAt).setUsesChronometer(true);

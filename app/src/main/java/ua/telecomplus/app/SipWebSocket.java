@@ -1,5 +1,7 @@
 package ua.telecomplus.app;
 
+import android.content.Context;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -97,7 +99,7 @@ final class SipWebSocket {
     /** 0 = обычное подключение, 1 = IP без SNI + Host=имя, 2 = IP без SNI + Host=IP. */
     static int savedDirectMode() {
         try {
-            TelecomPlusApplication app = TelecomPlusApplication.instance;
+            Context app = TpEnv.app;
             return app == null ? 0 : app.getSharedPreferences("telecom_plus_net", 0).getInt(PREF, 0);
         } catch (Exception unused) {
             return 0;
@@ -106,7 +108,7 @@ final class SipWebSocket {
 
     static boolean hasSavedMode() {
         try {
-            TelecomPlusApplication app = TelecomPlusApplication.instance;
+            Context app = TpEnv.app;
             return app != null && app.getSharedPreferences("telecom_plus_net", 0).contains(PREF);
         } catch (Exception unused) {
             return false;
@@ -115,7 +117,7 @@ final class SipWebSocket {
 
     static void saveDirectMode(int mode) {
         try {
-            TelecomPlusApplication app = TelecomPlusApplication.instance;
+            Context app = TpEnv.app;
             if (app != null) {
                 app.getSharedPreferences("telecom_plus_net", 0).edit().putInt(PREF, mode).apply();
             }

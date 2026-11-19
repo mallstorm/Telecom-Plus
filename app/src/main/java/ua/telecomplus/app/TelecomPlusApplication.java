@@ -15,11 +15,10 @@ public final class TelecomPlusApplication extends Application {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        SecureVault secureVault = new SecureVault(this);
-        this.vault = secureVault;
-        this.gateway = new IntertelecomPortalClient(secureVault);
-        this.telephony = new CleanRoomTelephonyEngine(this, this.vault);
-        SessionKeepAliveJob.schedule(this);
+        TpEnv.init(this);
+        this.vault = TpEnv.vault;
+        this.gateway = TpEnv.gateway;
+        this.telephony = TpEnv.telephony;
     }
 
     @Override // android.app.Application

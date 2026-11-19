@@ -17,28 +17,28 @@ final class Ico {
             return 0;
         }
         switch (g) {
-            case "⌂": return R.drawable.ic_home;
-            case "☎": return R.drawable.ic_phone;
-            case "☺": return R.drawable.ic_contacts;
-            case "✉": return R.drawable.ic_chat;
-            case "☰": return R.drawable.ic_user;
-            case "↗": return R.drawable.ic_call_made;
-            case "▣": return R.drawable.ic_tariff;
-            case "◷": return R.drawable.ic_clock;
-            case "☷": return R.drawable.ic_services;
-            case "✓": return R.drawable.ic_check;
-            case "+": return R.drawable.ic_plus;
-            case "−": return R.drawable.ic_minus;
-            case "₴": return R.drawable.ic_wallet;
-            case "?": return R.drawable.ic_info;
-            case "➤": return R.drawable.ic_send;
-            case "P": return R.drawable.ic_globe;
-            case "T+": return R.drawable.ic_user;
-            case "№": return R.drawable.ic_card;
-            case "SIM": return R.drawable.ic_sim;
-            case "TP": return R.drawable.ic_tariff;
-            case "IT": return R.drawable.ic_phone;
-            case "@": return R.drawable.ic_mail;
+            case "⌂": return Res.d("ic_home");
+            case "☎": return Res.d("ic_phone");
+            case "☺": return Res.d("ic_contacts");
+            case "✉": return Res.d("ic_chat");
+            case "☰": return Res.d("ic_user");
+            case "↗": return Res.d("ic_call_made");
+            case "▣": return Res.d("ic_tariff");
+            case "◷": return Res.d("ic_clock");
+            case "☷": return Res.d("ic_services");
+            case "✓": return Res.d("ic_check");
+            case "+": return Res.d("ic_plus");
+            case "−": return Res.d("ic_minus");
+            case "₴": return Res.d("ic_wallet");
+            case "?": return Res.d("ic_info");
+            case "➤": return Res.d("ic_send");
+            case "P": return Res.d("ic_globe");
+            case "T+": return Res.d("ic_user");
+            case "№": return Res.d("ic_card");
+            case "SIM": return Res.d("ic_sim");
+            case "TP": return Res.d("ic_tariff");
+            case "IT": return Res.d("ic_phone");
+            case "@": return Res.d("ic_mail");
             default: return 0;
         }
     }

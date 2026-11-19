@@ -279,7 +279,7 @@ public final class MainActivity extends Activity {
         row.setElevation(dp(10));
         row.setPadding(dp(6), dp(8), dp(6), dp(8));
         String[] names = {"Кабинет", "Звонки", "Контакты", "Чаты", "Профиль"};
-        int[] icons = {R.drawable.ic_home, R.drawable.ic_dialpad, R.drawable.ic_contacts, R.drawable.ic_chat, R.drawable.ic_user};
+        int[] icons = {Res.d("ic_home"), Res.d("ic_dialpad"), Res.d("ic_contacts"), Res.d("ic_chat"), Res.d("ic_user")};
         final int[] tabs = {0, 2, 5, 6, 4};
         int unread = phoneData().unreadTotal();
         for (int i = 0; i < 5; i++) {
@@ -1454,7 +1454,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(74), dp(74));
         sp.setMargins(dp(10), dp(8), dp(10), dp(4));
         bottom.addView(spacer, sp);
-        TextView callBtn = roundIconButton(R.drawable.ic_phone, -1, GREEN, 74);
+        TextView callBtn = roundIconButton(Res.d("ic_phone"), -1, GREEN, 74);
         callBtn.setElevation(dp(4));
         callBtn.setContentDescription("Позвонить");
         callBtn.setOnClickListener(new View.OnClickListener() {
@@ -1477,7 +1477,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(74), dp(74));
         cp.setMargins(dp(10), dp(8), dp(10), dp(4));
         bottom.addView(callBtn, cp);
-        TextView back = roundIconButton(R.drawable.ic_backspace, MUTED, Color.TRANSPARENT, 74);
+        TextView back = roundIconButton(Res.d("ic_backspace"), MUTED, Color.TRANSPARENT, 74);
         back.setContentDescription("Стереть");
         back.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1508,12 +1508,7 @@ public final class MainActivity extends Activity {
         check.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent launch = MainActivity.this.getPackageManager().getLaunchIntentForPackage(IT_PHONE_PACKAGE);
-                if (launch != null) {
-                    MainActivity.this.startActivity(launch);
-                } else {
-                    MainActivity.this.callViaItPhone("0");
-                }
+                MainActivity.this.openOfficial("smile.MainActivity");
             }
         });
         Button log = secondary("Журнал");
@@ -1586,7 +1581,7 @@ public final class MainActivity extends Activity {
         if (ringingIn) {
             LinearLayout row = row();
             row.setGravity(17);
-            View decline = callAction(R.drawable.ic_call_end, "Отклонить", false, new View.OnClickListener() {
+            View decline = callAction(Res.d("ic_call_end"), "Отклонить", false, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
@@ -1598,7 +1593,7 @@ public final class MainActivity extends Activity {
                 }
             });
             ((TextView) ((LinearLayout) decline).getChildAt(0)).setBackground(rounded(RED, 34, 0, 0));
-            View accept = callAction(R.drawable.ic_phone, "Ответить", false, new View.OnClickListener() {
+            View accept = callAction(Res.d("ic_phone"), "Ответить", false, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     MainActivity.this.withMicPermission(new Runnable() {
@@ -1638,7 +1633,7 @@ public final class MainActivity extends Activity {
             LinearLayout r1 = row();
             r1.setGravity(17);
             final boolean speaker = telephonySnapshot.audioRoute == AudioRoute.SPEAKER;
-            View mute = callAction(telephonySnapshot.muted ? R.drawable.ic_mic_off : R.drawable.ic_mic, "Микрофон", telephonySnapshot.muted, new View.OnClickListener() {
+            View mute = callAction(telephonySnapshot.muted ? Res.d("ic_mic_off") : Res.d("ic_mic"), "Микрофон", telephonySnapshot.muted, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     final boolean target = !telephonySnapshot.muted;
@@ -1650,14 +1645,14 @@ public final class MainActivity extends Activity {
                     });
                 }
             });
-            View pad = callAction(R.drawable.ic_dialpad, "Клавиатура", false, new View.OnClickListener() {
+            View pad = callAction(Res.d("ic_dialpad"), "Клавиатура", false, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     MainActivity.this.callPadShown = true;
                     MainActivity.this.showCabinet();
                 }
             });
-            View spk = callAction(R.drawable.ic_speaker, "Динамик", speaker, new View.OnClickListener() {
+            View spk = callAction(Res.d("ic_speaker"), "Динамик", speaker, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     MainActivity.this.doTelephony(new Callable<TelephonyResult<Void>>() {
@@ -1675,7 +1670,7 @@ public final class MainActivity extends Activity {
             LinearLayout r2 = row();
             r2.setGravity(17);
             r2.setPadding(0, dp(18), 0, 0);
-            View hold = callAction(telephonySnapshot.held ? R.drawable.ic_play : R.drawable.ic_pause, telephonySnapshot.held ? "Снять" : "Удержание", telephonySnapshot.held, new View.OnClickListener() {
+            View hold = callAction(telephonySnapshot.held ? Res.d("ic_play") : Res.d("ic_pause"), telephonySnapshot.held ? "Снять" : "Удержание", telephonySnapshot.held, new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     final boolean target = !telephonySnapshot.held;
@@ -1696,7 +1691,7 @@ public final class MainActivity extends Activity {
         LinearLayout endRow = row();
         endRow.setGravity(17);
         endRow.setPadding(0, dp(26), 0, 0);
-        TextView end = roundIconButton(R.drawable.ic_call_end, -1, RED, 72);
+        TextView end = roundIconButton(Res.d("ic_call_end"), -1, RED, 72);
         end.setElevation(dp(4));
         end.setContentDescription("Завершить");
         end.setOnClickListener(new View.OnClickListener() {
@@ -3482,7 +3477,7 @@ public final class MainActivity extends Activity {
     };
 
     private PhoneData phoneData() {
-        return PhoneData.get(((TelecomPlusApplication) getApplication()).vault);
+        return PhoneData.get(TpEnv.vault);
     }
 
     private void onPhoneDataChanged() {
@@ -3528,12 +3523,69 @@ public final class MainActivity extends Activity {
         return new java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(new Date(j));
     }
 
-    private static final String IT_PHONE_PACKAGE = "smile.ringotel.it";
+    private boolean embedded() {
+        try {
+            Class.forName("smile.MainActivity");
+            return true;
+        } catch (Throwable unused) {
+            return false;
+        }
+    }
+
+    private String itPhonePkg() {
+        return embedded() ? getPackageName() : "smile.ringotel.it";
+    }
+
+    private void openOfficial(String cls) {
+        try {
+            if (embedded()) {
+                Intent i = new Intent();
+                i.setClassName(getPackageName(), cls);
+                startActivity(i);
+            } else {
+                Intent launch = getPackageManager().getLaunchIntentForPackage("smile.ringotel.it");
+                if (launch != null) {
+                    startActivity(launch);
+                } else {
+                    callViaItPhone("0");
+                }
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Не удалось открыть раздел", 0).show();
+        }
+    }
+
+    private View itSettingsCard() {
+        LinearLayout c = card();
+        c.setPadding(dp(14), dp(2), dp(14), dp(2));
+        String[][] items = {
+            {"☎", "Звонки и чаты IT Phone", "Контакты, журнал, сообщения", "smile.MainActivity"},
+            {"№", "Мои номера", "SIP-аккаунты и номера", "smile.ringotel.it.settings.sipaccounts.SipAccountsActivity"},
+            {"☰", "Настройки приложения", "Общие, уведомления, разрешения, АТС", "smile.ringotel.it.settings_new.SettingsActivityNew"},
+            {"−", "Заблокированные", "Список заблокированных номеров", "smile.ringotel.it.fragments.fragment_menu.blockedcontacts.BlockedContactsActivity"}
+        };
+        for (int i = 0; i < items.length; i++) {
+            final String cls = items[i][3];
+            if (i > 0) {
+                c.addView(profileDivider(), lp(-1, dp(1), 0));
+            }
+            c.addView(menuRow(items[i][0], items[i][1], items[i][2], new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    MainActivity.this.openOfficial(cls);
+                }
+            }), matchWrap());
+        }
+        return c;
+    }
     private String pendingCallNumber;
 
     private boolean itPhoneInstalled() {
+        if (embedded()) {
+            return true;
+        }
         try {
-            getPackageManager().getPackageInfo(IT_PHONE_PACKAGE, 0);
+            getPackageManager().getPackageInfo(itPhonePkg(), 0);
             return true;
         } catch (Exception unused) {
             return false;
@@ -3557,9 +3609,9 @@ public final class MainActivity extends Activity {
                 @Override
                 public void onClick(DialogInterface dialogInterface, int i) {
                     try {
-                        startActivity(new Intent("android.intent.action.VIEW", Uri.parse("market://details?id=" + IT_PHONE_PACKAGE)));
+                        startActivity(new Intent("android.intent.action.VIEW", Uri.parse("market://details?id=" + itPhonePkg())));
                     } catch (Exception e) {
-                        startActivity(new Intent("android.intent.action.VIEW", Uri.parse("https://play.google.com/store/apps/details?id=" + IT_PHONE_PACKAGE)));
+                        startActivity(new Intent("android.intent.action.VIEW", Uri.parse("https://play.google.com/store/apps/details?id=" + itPhonePkg())));
                     }
                 }
             }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
@@ -3579,15 +3631,15 @@ public final class MainActivity extends Activity {
         boolean canCall = checkSelfPermission("android.permission.CALL_PHONE") == 0;
         try {
             Intent intent = new Intent(canCall ? "android.intent.action.CALL" : "android.intent.action.DIAL", Uri.fromParts("tel", num, null));
-            intent.setPackage(IT_PHONE_PACKAGE);
+            intent.setPackage(itPhonePkg());
             startActivity(intent);
         } catch (Exception e) {
             try {
                 Intent intent2 = new Intent("android.intent.action.DIAL", Uri.fromParts("tel", num, null));
-                intent2.setPackage(IT_PHONE_PACKAGE);
+                intent2.setPackage(itPhonePkg());
                 startActivity(intent2);
             } catch (Exception e2) {
-                Intent launch = getPackageManager().getLaunchIntentForPackage(IT_PHONE_PACKAGE);
+                Intent launch = getPackageManager().getLaunchIntentForPackage(itPhonePkg());
                 if (launch != null) {
                     startActivity(launch);
                     Toast.makeText(this, "Откройте набор в IT Phone и введите номер: " + num, 1).show();
@@ -5443,7 +5495,7 @@ public final class MainActivity extends Activity {
         }
         column.addView(label(str, 13, Color.rgb(200, 222, 255), false), matchWrap());
         row.addView(column, new LinearLayout.LayoutParams(0, -2, 1.0f));
-        TextView refresh = new Ico.CircleView(this, Ico.get(this, R.drawable.ic_refresh, -1));
+        TextView refresh = new Ico.CircleView(this, Ico.get(this, Res.d("ic_refresh"), -1));
         refresh.setBackground(rounded(Color.argb(40, 255, 255, 255), 24, 0, 0));
         refresh.setContentDescription("Обновить");
         refresh.setOnClickListener(new defpackage.d(this, 14));
@@ -5508,9 +5560,9 @@ public final class MainActivity extends Activity {
         super.onCreate(bundle);
         getWindow().setStatusBarColor(BLUE_DARK);
         getWindow().setNavigationBarColor(-1);
-        TelecomPlusApplication telecomPlusApplication = (TelecomPlusApplication) getApplication();
-        this.gateway = telecomPlusApplication.gateway;
-        this.telephony = telecomPlusApplication.telephony;
+        TpEnv.init(this);
+        this.gateway = TpEnv.gateway;
+        this.telephony = TpEnv.telephony;
         this.appRoot = new FrameLayout(this);
         FrameLayout frameLayout = new FrameLayout(this);
         this.root = frameLayout;
@@ -5538,6 +5590,10 @@ public final class MainActivity extends Activity {
         ensureTelephonyService();
         beginStartup();
         handleLaunchIntent(getIntent());
+        if (embedded() && !getSharedPreferences("telecom_plus_net", 0).getBoolean("it_first_open", false)) {
+            getSharedPreferences("telecom_plus_net", 0).edit().putBoolean("it_first_open", true).apply();
+            openOfficial("smile.MainActivity");
+        }
     }
 
     @Override // android.app.Activity
@@ -5564,14 +5620,14 @@ public final class MainActivity extends Activity {
 
     @Override // android.app.Activity
     public void onPause() {
-        TelecomPlusApplication.foreground = false;
+        TpEnv.foreground = false;
         super.onPause();
     }
 
     @Override // android.app.Activity
     public void onResume() {
         super.onResume();
-        TelecomPlusApplication.foreground = true;
+        TpEnv.foreground = true;
         consumeRecentPortalOtp();
     }
 
@@ -5588,7 +5644,7 @@ public final class MainActivity extends Activity {
     }
 
     private View roundRefresh() {
-        TextView refresh = new Ico.CircleView(this, Ico.get(this, R.drawable.ic_refresh, BLUE_DARK));
+        TextView refresh = new Ico.CircleView(this, Ico.get(this, Res.d("ic_refresh"), BLUE_DARK));
         refresh.setBackground(rounded(-1, 23, BORDER, 1));
         refresh.setContentDescription("Обновить");
         refresh.setOnClickListener(new defpackage.d(this, 14));
@@ -5664,7 +5720,7 @@ public final class MainActivity extends Activity {
         row.setElevation(dp(10));
         row.setPadding(dp(4), dp(8), dp(4), dp(8));
         String[] names = {"Главная", "Телефон", "Сообщения", "Кабинет"};
-        int[] icons = {R.drawable.ic_home, R.drawable.ic_phone, R.drawable.ic_chat, R.drawable.ic_user};
+        int[] icons = {Res.d("ic_home"), Res.d("ic_phone"), Res.d("ic_chat"), Res.d("ic_user")};
         int[] tabs = {0, 2, 6, 4};
         int unread = phoneData().unreadTotal();
         for (int i = 0; i < 4; i++) {
@@ -5960,6 +6016,12 @@ public final class MainActivity extends Activity {
             }
         }), matchWrap());
         parent.addView(c2, matchWrap());
+        if (embedded()) {
+            TextView ih = label("IT Phone", 17, TEXT, true);
+            ih.setPadding(dp(2), dp(18), 0, dp(10));
+            parent.addView(ih, matchWrap());
+            parent.addView(itSettingsCard(), matchWrap());
+        }
     }
 
     private void renderTariff(LinearLayout parent) {
@@ -6135,7 +6197,7 @@ public final class MainActivity extends Activity {
             tc.addView(label(displayValue(e.number) + (e.duration > 0 ? " · " + formatDuration(e.duration) : ""), 12, MUTED, false), matchWrap());
             row.addView(tc, lp(0, -2, 1.0f));
             row.addView(label(timeLabel(e.time), 11, MUTED, false), wrap());
-            TextView call = new Ico.CircleView(this, Ico.get(this, R.drawable.ic_phone, BLUE));
+            TextView call = new Ico.CircleView(this, Ico.get(this, Res.d("ic_phone"), BLUE));
             LinearLayout.LayoutParams cl = lp(dp(36), dp(36), 0);
             cl.leftMargin = dp(8);
             call.setOnClickListener(new View.OnClickListener() {
@@ -6201,7 +6263,7 @@ public final class MainActivity extends Activity {
         int pct = unlimited ? 100 : pb.progressPercent;
         int color = usageColor(pct);
         String tl = pb.title.toLowerCase(Locale.ROOT);
-        int icon = (tl.contains("интернет") || tl.contains("трафик") || tl.contains("гб")) ? R.drawable.ic_globe : (tl.contains("sms") || tl.contains("смс")) ? R.drawable.ic_mail : R.drawable.ic_phone;
+        int icon = (tl.contains("интернет") || tl.contains("трафик") || tl.contains("гб")) ? Res.d("ic_globe") : (tl.contains("sms") || tl.contains("смс")) ? Res.d("ic_mail") : Res.d("ic_phone");
         LinearLayout t = column();
         t.setPadding(dp(14), dp(14), dp(14), dp(16));
         t.setBackground(rounded(-1, 20, BORDER, 1));
